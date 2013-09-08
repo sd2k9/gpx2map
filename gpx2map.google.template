@@ -1,0 +1,166 @@
+[%- # Template for Google API Map Mash-Up -%]
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+ <head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8"/>
+    <title>[% title %]</title>
+    <style type="text/css">
+         html, body {height: 100%}   <!-- Required for strict Doctype, otherwise map is zero size -->
+    </style>
+    <script type="text/javascript" src="http://maps.google.com/maps/api/js?sensor=false"></script>
+    <script type="text/javascript">
+    //<![CDATA[
+
+    function load() {
+      // *** Map Itself
+     var center_point = new google.maps.LatLng([% points.0.lat %], [% points.0.lon %]);
+     var mapOptions = {
+      zoom: 12,
+      center:  center_point,
+      scaleControl: true,                        // Distance scale enabled
+      mapTypeId: google.maps.MapTypeId.HYBRID    // Hybrid Map Display
+       // Mini-Map not yet supported in v3 (as of Oct. 2009)
+     };
+     var map = new google.maps.Map(document.getElementById("mapContainer"), mapOptions);
+
+     // *** Track points
+     [%- FOREACH point = points %]
+     var point = new google.maps.LatLng([% point.lat %], [% point.lon %]);
+     var marker[% loop.index %] = new google.maps.Marker({
+      position: point, 
+      map: map, 
+      [%- IF loop.first %]
+      [%- # First track point: "S" %]
+      icon: "http://www.google.com/mapfiles/markerS.png",
+      [%- ELSIF loop.last %]
+      [%- # Last track point: "E" %]
+      icon: "http://www.google.com/mapfiles/markerE.png",
+      [%- ELSE %]
+      [%- # Normal Icon %]
+      [%- END %]
+      title:"[% point.dist %]"
+      });
+    [% END %]
+
+    [%- IF pics_enable %]
+    [%- # Only print when picture embedding is enabled %]
+    // *** Embedded Pictures
+    // One instance info window only, to have only one open at the time
+    var info = new google.maps.InfoWindow();
+    google.maps.event.addListener(info, 'closeclick', function() {
+        info.gpx2map_id = -1;
+    });
+    info.gpx2map_id = -1;  [%- # Use this to track open/closed windows %]
+
+
+    [%- FOREACH pic = pics_data %]
+    var marker_p[% loop.index %] = new google.maps.Marker({
+      position: new google.maps.LatLng([% pic.lat %], [% pic.long %]),
+      map: map, 
+      icon: "[% pic.ico %]",
+      [%- # // title:"title" %]
+    });
+
+    google.maps.event.addListener(marker_p[% loop.index %], 'click', function() {
+      if (info.gpx2map_id == [% loop.index %]) {
+        info.gpx2map_id = -1;
+        info.close();
+      } else {
+        info.setContent('<div style="text-align:left">' +
+                     '[% pic.ele %][% pic.time %]' +
+                     '<p>' +
+                     '<img src="[% pic.med %]">' +
+                     '</p>' +
+                     '</div>');
+        info.gpx2map_id = [% loop.index %];
+        info.open(map,marker_p[% loop.index %]);
+      }
+    });
+    [% END %]
+    [%- END %]
+
+    // *** Map Line
+    var track_points = [
+    [%- FOREACH point = line %]
+     new google.maps.LatLng([% point.lat %], [% point.lon %])
+     [%- IF NOT loop.last -%],
+     [%- END -%]
+    [%- END %]
+    ];
+    // Add line to map, points, color, width in pixel, transparency
+    var track = new google.maps.Polyline({
+      path: track_points,
+      strokeColor: "#F02000",
+      strokeOpacity: 0.7,
+      strokeWeight: 3
+    });
+   track.setMap(map);
+
+  }
+
+  function set_size() {
+       // Update size of map element to fill browser window
+    if (document.getElementById) {   // When element is available then reposition
+       // Update width to window height
+       document.getElementById("mapContainer").style.width = (window.innerWidth - 30) + "px";
+       // Update height to window height
+       var height = window.innerHeight;   // Start with window height
+       height = height - document.getElementById("mapContainer").offsetTop;  // substract start of window element
+       document.getElementById("mapContainer").style.height = (height - 10) + "px";   // Update element
+    }
+    // else: Use MS-Only method for older IE versions (not implemented)
+  }
+
+  // Register set_size to be executed every time the browser window size is changed
+  if ( window.addEventListener ) {   // when modern listener method is supported
+     window.addEventListener ("resize", set_size, false);
+  } else if (window.captureEvents ) {  // otherwise try older version
+     window.captureEvents(Event.RESIZE);
+     window.onresize = set_size;
+  } else if (window.attachEvent) {      // at last try MSIE special version
+     object.attachEvent("onresize", set_size);
+  }
+  //]]>
+  </script>
+</head>
+
+<body onload="load(); set_size();">
+
+  <h1><a name="toplocation">[% title %]</a></h1>
+
+  <table style="width:100%;border-width:0px;">
+  <tr>
+  <td style="text-align:left;">Distance is [% distance %]</td>
+  <td style="text-align:left;"><a href="#addinfos">Additional Information</a></td>
+  <td style="text-align:right;">created with <a href="http://sethdepot.org/gpx2map/">gpx2map</a></td>
+  </tr>
+  </table>
+
+  <div id="mapContainer" style="width:100%; height:80%"></div>
+
+    <h2><a name="addinfos">Additional Information</a></h2>
+
+    <div><a href="#toplocation">Back to top</a></div>
+
+
+    <ul>
+      <li>Hover over markers for distance from start and height</li>
+      [%- IF height_enable %]
+      [%- # Only print when height display is enabled %]
+      <li>Accumulated Ascend: [% height_ascend %]</li>
+      <li>Accumulated Descend: [% height_descend %]</li>
+      [%- END %]
+    </ul>
+
+  [%- IF height_enable %]
+  [%- # Only print when height display is enabled %]
+  <!-- Height Display -->
+  <div  style="text-align:center">
+     <img alt="Height Profile" src="[% height_file %]" />
+  </div>
+  [%- END %]
+
+</body>
+</html>

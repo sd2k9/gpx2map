@@ -1,0 +1,210 @@
+[%- # Template for OpenStreetMaps API Map Mash-Up -%]
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+ <head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8"/>
+    <title>[% title %]</title>
+    <style type="text/css">
+         html, body {height: 100%}   <!-- Required for strict Doctype, otherwise map is zero size -->
+    </style>
+    <!-- bring in the OpenLayers and OpenStreetMap javascript libraries -->
+    <script type="text/javascript" src="http://www.openlayers.org/api/OpenLayers.js"></script>
+    <script type="text/javascript" src="http://www.openstreetmap.org/openlayers/OpenStreetMap.js"></script>
+
+   <script type="text/javascript">
+   //<![CDATA[
+
+    function load() {
+      // *** Map Itself
+      var map = new OpenLayers.Map ("map", {
+       controls:[
+        new OpenLayers.Control.Navigation(),
+        new OpenLayers.Control.PanZoomBar(),
+        new OpenLayers.Control.Permalink(),
+        new OpenLayers.Control.OverviewMap() ],
+       numZoomLevels: 19,
+       units: 'm',
+       projection: new OpenLayers.Projection("EPSG:900913"),
+       displayProjection: new OpenLayers.Projection("EPSG:4326")
+      } );
+ 
+      // Define the map layer
+      [%- # Use the default layer %]
+      layerTilesAtHome = new OpenLayers.Layer.OSM();
+      map.addLayer(layerTilesAtHome);
+ 
+
+    // *** Map Line
+    var lineLayer = new OpenLayers.Layer.Vector('Line Layer');
+    var points = new Array(
+    [%- FOREACH point = line %]
+     new OpenLayers.Geometry.Point([% point.lon %], [% point.lat %])
+     [%- IF NOT loop.last -%],
+     [%- END -%]
+    [%- END %]
+    );
+
+    var line = new OpenLayers.Geometry.LineString(points); 
+    var defaultProj = new OpenLayers.Projection('EPSG:4326');
+    line = line.transform(defaultProj, map.getProjectionObject());
+
+    lineFeature = new OpenLayers.Feature.Vector(line, null, {
+     strokeColor: '#F02000', 
+     strokeOpacity: 0.7,
+     strokeWidth: 3
+    });
+    lineLayer.addFeatures([lineFeature]);
+    map.addLayer(lineLayer);  // Add to map
+
+
+     // Define the markers layer
+     layerMarkers = new OpenLayers.Layer.Markers("Markers");
+     map.addLayer(layerMarkers);
+     if( ! map.getCenter() ){
+         var lonLat = new OpenLayers.LonLat([% points.0.lon %], [% points.0.lat %]).transform(new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject());
+         map.setCenter (lonLat, 12);   // 2. Parameter: Initial zoom
+     }
+
+    // *** Track points
+    var size = new OpenLayers.Size(20,34);
+    var offset = new OpenLayers.Pixel(-(size.w/2), -size.h);
+    var iconS = new OpenLayers.Icon('http://www.google.com/mapfiles/markerS.png',size,offset);
+    var iconE = new OpenLayers.Icon('http://www.google.com/mapfiles/markerE.png',size,offset);
+    var icon = new OpenLayers.Icon('http://www.google.com/mapfiles/marker.png',size,offset);
+
+    [%- FOREACH point = points %]
+    var point = new  OpenLayers.LonLat([% point.lon %], [% point.lat %]).transform(
+                     new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject());
+    [%- IF loop.first %]
+    [%- # First track point: "S" %]
+    layerMarkers.addMarker(new OpenLayers.Marker(point,iconS));
+    [%- ELSIF loop.last %]
+    [%- # Last track point: "E" %]
+    layerMarkers.addMarker(new OpenLayers.Marker(point,iconE));
+    [%- ELSE %]
+    [%- # Normal Icon %]
+    layerMarkers.addMarker(new OpenLayers.Marker(point,icon.clone()));
+    [%- END %]
+    // TODO: Add description:"[% point.dist %]"
+    [% END %]
+
+    [%- IF pics_enable %]
+    [%- # Only print when picture embedding is enabled %]
+    // *** Embedded Pictures
+    // One instance of popup window only, to have only one open at the time
+    var popup = new OpenLayers.Popup.AnchoredBubble("popper",
+                   new OpenLayers.LonLat(0.0, 0.0).transform(
+                      new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject()),
+                   new OpenLayers.Size(null),
+                   null, null, true);
+    // Setup and hide initially
+    popup.hide();
+    popup.closeOnMove = true;
+    popup.autoSize = true;
+    map.addPopup(popup);  // Put to map (hidden)
+
+    // Shared Stuff for the icons
+    var size_ico = new OpenLayers.Size(51,51);
+    var offset_ico = new OpenLayers.Pixel(-(size_ico.w/2), -size_ico.h);
+
+    // Popup function, will be executed upon marker click
+    var f_marker_popup = function() {
+      if ( ! popup.lonlat.equals(this.lonlat)) {
+         // Other marker clicked, always show now
+         popup.setContentHTML(this.popup_text);
+         popup.lonlat = this.lonlat.clone();
+         popup.autoSize = true;
+         popup.updatePosition();
+         //   popup.updateRelativePosition();
+         //   popup.setRicoCorners();
+         popup.panIntoView();
+         popup.show();
+      } else {   // same marker clicked: Just toggle
+        popup.toggle();
+      }
+      OpenLayers.Event.stop(evt);   // Event handling done
+    };
+
+    [%- FOREACH pic = pics_data %]
+    var icon_p[% loop.index %] = new OpenLayers.Icon('[% pic.ico %]',size_ico,offset_ico);
+    var point = new OpenLayers.LonLat([% pic.long %], [% pic.lat %]).transform(
+               new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject());
+    var marker_p[% loop.index %] = new OpenLayers.Marker(point,icon_p[% loop.index %]);
+    marker_p[% loop.index %].popup_text = '<div style="text-align:left">' +
+                     'Image at ([% pic.lat %], [% pic.long %])[% pic.ele %][% pic.time %]' +
+                     '<p>' +
+                     '<img src="[% pic.med %]">' +
+                     '</p>' +
+                     '</div>';
+    layerMarkers.addMarker(marker_p[% loop.index %]);
+    marker_p[% loop.index %].events.register("mousedown", marker_p[% loop.index %], f_marker_popup);
+    [% END %]
+    [%- END %]
+
+  }
+
+  function set_size() {
+       // Update size of map element to fill browser window
+    if (document.getElementById) {   // When element is available then reposition
+       // Update width to window height
+       document.getElementById("map").style.width = (window.innerWidth - 30) + "px";
+       // Update height to window height
+       var height = window.innerHeight;   // Start with window height
+       height = height - document.getElementById("map").offsetTop;  // substract start of window element
+       document.getElementById("map").style.height = (height - 10) + "px";   // Update element
+    }
+    // else: Use MS-Only method for older IE versions (not implemented)
+  }
+
+  // Register set_size to be executed every time the browser window size is changed
+  if ( window.addEventListener ) {   // when modern listener method is supported
+     window.addEventListener ("resize", set_size, false);
+  } else if (window.captureEvents ) {  // otherwise try older version
+     window.captureEvents(Event.RESIZE);
+     window.onresize = set_size;
+  } else if (window.attachEvent) {      // at last try MSIE special version
+     object.attachEvent("onresize", set_size);
+  }
+  //]]>
+  </script>
+</head>
+
+<body onload="load(); set_size();">
+
+  <h1><a name="toplocation">[% title %]</a></h1>
+
+  <table style="width:100%;border-width:0px;">
+  <tr>
+  <td style="text-align:left;">Distance is [% distance %]</td>
+  <td style="text-align:left;"><a href="#addinfos">Additional Information</a></td>
+  <td style="text-align:right;">created with <a href="http://sethdepot.org/gpx2map/">gpx2map</a></td>
+  </tr>
+  </table>
+
+  <div id="map" style="width:100%; height:80%"></div>
+
+    <h2><a name="addinfos">Additional Information</a></h2>
+
+    <div><a href="#toplocation">Back to top</a></div>
+
+
+    <ul>
+      <li>Hover over markers for distance from start and height</li>
+      [%- IF height_enable %]
+      [%- # Only print when height display is enabled %]
+      <li>Accumulated Ascend: [% height_ascend %]</li>
+      <li>Accumulated Descend: [% height_descend %]</li>
+      [%- END %]
+    </ul>
+
+  [%- IF height_enable %]
+  [%- # Only print when height display is enabled %]
+  <!-- Height Display -->
+  <div  style="text-align:center">
+     <img alt="Height Profile" src="[% height_file %]" />
+  </div>
+  [%- END %]
+
+</body>
+</html>

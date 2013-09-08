@@ -1,0 +1,1107 @@
+#!/usr/bin/perl
+# File name: ''gpx2map''
+# Function: Converts track data in GPX format (e.g. from a Garmin naviagation
+#           system with gpsbabel) to a Google/Yahoo/OpenStreetMaps Maps MashUp
+#           of the route
+#  status: New feature testing
+#
+#      created: 2007-07-27
+#      Version: $LastChangedRevision: 435 $
+#  last change: $LastChangedDate: 2012-06-07 17:38:19 +0200 (Thu, 07 Jun 2012) $
+#  Based on code from Mike Schilli, 2006 (m@perlmeister.com)
+#  http://www.linux-magazin.de/heft_abo/ausgaben/2006/07/hinterm_horizont
+# Improvements Copyright (C) 2007-2010 Robert Lange (robert.lange@s1999.tu-chemnitz.de)
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# version 2 as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+
+
+# ******************** MODIFY CUSTOM SETTING BELOW THIS LINE *******************
+# *** global settings ***
+
+my %opts = (        # Processed options for use in the program
+                    # with defaults, some can be overridden by command line
+
+    # Input file name from command line
+    # infile,
+    #
+    # When dealing with compressed file, this is the filename without the
+    # compression suffix. Otherwise it's just infile
+    # This is set by the program itself, no modification here
+    # infile_plain,
+    #
+    # Output file name base from command line
+    # outfile
+
+    # Route to process, when not specified just use all points in gpx file
+    # route
+
+    # Merge all track points from all routes to one file, then this is set
+    merge => 0,
+
+    # Title of web page (by command line)
+    # title
+
+    # when true create Google Mash-Up
+    google => 1,
+    # when true create OpenStreetMaps Mash-Up
+    osm => 0,
+    # when true create Yahoo Mash-Up, false for Google
+    yahoo => 0,
+
+    # when true (1) create a height profile, not for 0 (by command line)
+    # Change default here, can be overridden by command line
+    height => 1,
+    # Is the Gnuplot module available, which is needed by height?
+    # This is set by the program itself, no modification here
+    # height_module
+
+    # when defined and a list of IMG files put also pictures on the map
+    # Is supplied by command line
+    # pics => [ ],
+    # Actually, pics will be an array of hashes with the keys
+    # name: Orginal file name, ico: Icon file name, med: Medium File name
+    # lat: Latitude information, long: Longitude information (from EXIF)
+    # ele: Height Information (when available, otherwise empty) (from EXIF)
+    # time: Time information (when available, otherwise empty) (from EXIF)
+    # Are the modules required for picture placement available?
+    # This is set by the program itself, no modification here
+    # pics_module
+
+    # Map template file, expect in same directory as script
+    map_template_google => 'gpx2map.google.template',
+    map_template_osm => 'gpx2map.osm.template',
+    map_template_yahoo  => 'gpx2map.yahoo.template',
+
+    # The API keys for Google and Yahoo, please replace with your own key
+    map_key_yahoo  => 'YahooDemo',               # Demo key (should work locally)
+    # Since API v3 NO Key anymore needed for Google
+
+
+    # Distance between Polyline points in kilometer
+    # map_line_dist => '0.025',        #   25 meter
+    map_line_dist => '0.005',          #   5 meter
+    # Distance between mapping points in kilometer (multiple of map_line_dist)
+    map_points_dist => '2.0',        # 2000 meter
+    # Height Difference between height diagram points in meters
+    height_diff => '25',        #   25 meter
+
+    # Settings for Picture preparation and placement on the map
+    # Insert this to the medium size image name, e.g. hi.jpg -> hi.med.jpg
+    pics_medium_name => '.med',
+    # Insert this to the Icon file name, e.g. hi.jpg -> hi.ico.jpg
+    pics_icon_name   => '.ico',
+    # Command line option for creating medium size images
+    # Default is to resize to 640x640 pixels
+    pics_medium_cmd => ["convert", "-resize", "640x640"],
+    # Command line option for creating icon images
+    # Default is to resize to 48x48 pixels, and adding a small frame
+    # ATTENTION: Currently the size 48x48 is hardcoded in gpx2map.osm.template !
+    pics_icon_cmd => ["convert", "-resize", "48x48",
+			"-mattecolor", "white", "-frame", "3x3"],
+
+    # Determine USB Port to use for gpsbabel; simple approach is using last one
+    # This command is piped through system to determine the USB connection port
+    gpsbabel_usbport_cmd => 'ls -1 /dev/ttyUSB* | tail -n 1',
+    # Call to gpsbabel for your convenience, w/o output file name
+    # Before USB port statement
+    gpsbabel_cmd_pre_port => [ "gpsbabel", "-D", "1", "-t", "-i" ,"garmin",
+		      "-f"],
+    # Call to gpsbabel for your convenience, w/o output file name
+    # After USB port statement
+    gpsbabel_cmd_post_port => [ "-o", "gpx", "-F"],
+);
+
+# **************************** END OF CUSTOM SETTINGS **************************
+# *** DON'T CHANGE ANYTHING BELOW THIS LINE UNTIL YOU KNOW WHAT YOU'RE DOING ***
+
+
+# *** Packages to use ***
+use strict;
+use warnings;
+use Getopt::Long;       # Command line parsing
+use XML::Twig;          # XML Parser
+use Template;           # Template toolkit for map Mash-Up
+use FindBin;            # Find local directory
+use File::Basename;     # File's basename
+use IO::File;           # IO File Handler, to allow also compressed files
+use Encode;             # To allow unicode caracters in file names
+
+# Geo::Distance package is on my system locally installed,
+# but of course prefer global version
+if (! eval "use Geo::Distance; 1") {
+  # Not found globally, try local
+  use lib "$FindBin::RealBin/cpan";
+  use Geo::Distance;      # Distance calculation (locally)
+}
+
+
+
+# In case the Gnuplot module is available, use it
+# it's needed for the height plot
+if (eval "use Chart::Gnuplot; 1") {
+  $opts{'height_module'} = 1;
+} else {
+  # We don't have it, so no height plot possible
+  $opts{'height_module'} = 0;
+}
+
+# In case the Image::ExifTool module is available, use it
+# it's needed for the picture display
+if (eval "use Image::ExifTool; 1") {
+  $opts{'pics_module'} = 1;
+} else {
+  # We don't have it, so no picture placement possible
+  $opts{'pics_module'} = 0;
+}
+
+# *** Subroutine declarations ***
+# main routine without any arguments
+sub main ();
+# Return version string from SVN tag with copyright
+# 1.P: true when printing verbose copyright string
+sub versionstring ($);
+# reads the command line options
+sub read_commandline();
+# Handler for processing XML <trk> in individual-track mode
+sub process_trk_xml_handler($$);
+# Handler for parsing XML <trkpt> elements
+sub read_trkpt_xml_handler($$);
+# Handler for parsing XML <trk> elements
+sub read_trk_xml_handler($$);
+# Do map mash-up; API independent part
+# 1.P: Webpage title
+sub map_mashup($);
+# Create the height profile image
+# 1.P: Ref to height point array
+# 2.P: File name for height image
+sub height_profile_image(\@$);
+# Map mash-up  for Google
+# 1.P: Ref to line points array
+# 2.P: Ref to marker array
+# 3.P: Output file name
+# 4.P: Height profile file name
+# 5.P: Accumulated Ascend
+# 6.P: Accumulated Descent
+# 7.P: Webpage title
+sub map_mashup_google(\@\@$$$$$);
+# Map mash-up  for OpenStreetMaps
+# 1.P: Ref to line points array
+# 2.P: Ref to marker array
+# 3.P: Output file name
+# 4.P: Height profile file name
+# 5.P: Accumulated Ascend
+# 6.P: Accumulated Descent
+# 7.P: Webpage title
+sub map_mashup_osm(\@\@$$$$$);
+# Map mash-up  for Yahoo
+# 1.P: Ref to line points array
+# 2.P: Ref to marker array
+# 3.P: Output file name
+# 4.P: Height profile file name
+# 5.P: Accumulated Ascend
+# 6.P: Accumulated Descent
+# 7.P: Webpage title
+sub map_mashup_yahoo(\@\@$$$$$);
+# Invoke gpsbabel
+# 1.P: output file
+sub gpsbabel($);
+
+
+# *** global variables/constants ***
+# Program name (constant)
+our $Prog_Name = "gpx2map";
+# Array of Hash of track points
+# Hash entries: lat(itude), lon(itude), ele(vation - zero when not available)
+#               dist(ance - added for considered points)
+my @points = ();
+# Calculated overall distance
+my $dist;
+
+
+# ***************************** Documentation ***************************
+# Need this variables for conditional help text
+our $Height_Default;
+if ( $opts{'height'} ) {
+  $Height_Default = "Enable (Default) or Disable";
+} else  {
+  $Height_Default = "Enable or Disable (Default)";
+}
+# This also 
+our $Pictures_Available;
+if ( not $opts{'pics_module'} ) {
+  $Pictures_Available = " (not available,\n" .
+   "                                 needs perl module Image::ExifTool";
+} else  {
+  $Pictures_Available = "";
+}
+my $Help_Documentation=<<EOF;
+DESCRIPTION
+
+$Prog_Name reads a gps track in GPX format (as produced by
+e.g. gpsbabel) and writes out an Google or OpenStreetMaps
+Mash-up containing the route.
+
+USAGE
+
+     $Prog_Name [--help|-h] [--version|-V] [--route|-r route] [--merge]
+             [--title|-t title] [--osm|-o] [--yahoo|-y] [--[no]height]
+             [--outfile|-w file] inputfile [--pictures|-p img1 img2 ...]
+
+       --help, -h                This help screen
+       --version, -V             Version
+
+       --osm, -o                 Create OpenStreetMaps Mash-Up
+       --yahoo, -y               Create Yahoo Mash-Up (broken)
+                                 Default is Google Mash-Up
+
+       --title, -t <title>       Title of web page, when not specified
+                                 use route name (or leave empty)
+
+       --route, -r <route>       Route to read
+
+       --merge                   Use all points from all routes in gpx
+                                 file
+
+       --outfile, -w <file>      For --route or --merge processing the
+                                 output path+base filename can be given
+
+       --height|--noheight       $Height_Default height profile
+
+       --pictures img1 img2 ...  Place a shrinked version of these images
+       -p img1 img2 img3 ...     on the map, Pictures must include GPS
+                                 coordinates${Pictures_Available}
+
+    inputfile                    GPX file to read
+                                 Can be compressed with gzip, bzip2, lzma/xz
+
+When neither "--route" nor "-merge" are specified, create
+individual web pages for each route.
+
+Output is written to <inputfile_without_suffix>[.<route>].html
+
+GPSBABEL INVOCATION
+
+For your convenience gpsbabel can be invoked over $Prog_Name.
+Just use the following command line:
+     $Prog_Name --babel outfile
+
+EOF
+
+
+
+
+# *** "body" of the program ***
+main();
+
+
+# *** main routine ***
+sub main() {
+
+  # *** Variables
+  my $twig;              # XML Twig module
+  my $title;             # Generated web page title
+  my $ifile;             # File handler for input file
+
+  # *** read the command line
+  read_commandline();
+
+  # Print Name/Version
+  print versionstring(0);
+
+  # Print selected mode
+  print "Generating output for ";
+  print "Google Maps\n" if $opts{'google'};
+  print "Open Street Maps (OSM)\n" if $opts{'osm'};
+  print "Yahoo Maps (currently broken)\n" if $opts{'yahoo'};
+
+
+  # *** In Pictures mode, prepare the images now
+  if ($opts{'pics'}) {
+    # Local Variables
+    my $pic;   # Picture file name
+    my ($fname,$fsuf); # Path+Filename and Suffix
+    my ($fmed,$fico); # Medium and Icon file names
+    my ($lat,$long); # Latitude/Longitude GPS Information
+    my @args;        # Arguments for external programm call
+    my $exif = new Image::ExifTool; # Exif parsing object
+    my $exif_infos;   # Extracted infos from EXIF
+    print "Creating icon and medium size images ...\n";
+    foreach my $p_ref (@{$opts{'pics'}}) {
+      $pic = $p_ref->{'name'};
+      # First simple check: Does this file exists at all
+      die "   Image file \"$pic\" does not exists! Exiting"
+	unless -e $pic;
+      # Fetch GPS coordinates from the image file
+      $exif_infos = $exif->ImageInfo($pic,
+		      ["GPSLatitude", "GPSLongitude", "GPSAltitude",
+		       "DateTimeOriginal"],
+		    {'CoordFormat' => '%.6f'} )
+	or die "Error fetching EXIF information from \"$pic\"! Exiting";
+      $lat = $exif_infos->{'GPSLatitude (1)'}
+	or die "Error fetching EXIF GPSLatitude from \"$pic\"!\n" .
+         	   "Not geotagged picture? Exiting";
+      $long = $exif_infos->{'GPSLongitude (1)'}
+	or die "Error fetching EXIF GPSLongitude from \"$pic\"!\n" .
+         	   "Not geotagged picture? Exiting";
+      if ($exif_infos->{'GPSAltitude'}) {  # When there is height information
+	$p_ref->{'ele'} = " Height " . $exif_infos->{'GPSAltitude'};
+	# And remove "Above Sea Level" when it's present
+	$p_ref->{'ele'} = $1
+	  if $p_ref->{'ele'} =~ /^(.+)\s*Above Sea Level\s*$/;
+      } else {
+	$p_ref->{'ele'} = "";  # To have it defined
+      }
+      if ($exif_infos->{'DateTimeOriginal'}) {  # When there is time information
+	$p_ref->{'time'} = ", Taken at " . $exif_infos->{'DateTimeOriginal'};
+      } else {
+	$p_ref->{'time'} = "";  # To have it defined
+      }
+      if (not $long or not $lat) {
+	die "Error fetching EXIF information from \"$pic\"! Exiting";
+      }
+      # Store in Hash
+      $p_ref->{'lat'} = $lat;
+      $p_ref->{'long'} = $long;
+
+      # Isolate file name stem and ending
+      $pic =~ /^(.+)(\.[^\.]+$)/
+	or die "   Picture suffix extraction failed for picture $pic!";
+      $fname = $1;
+      $fsuf = $2;
+      $fmed = $fname . $opts{'pics_medium_name'} . $fsuf;
+      $fico = $fname . $opts{'pics_icon_name'} . $fsuf;
+      # And put them to the list
+      $p_ref->{'med'} = $fmed;
+      $p_ref->{'ico'} = $fico;
+      # Create Medium Image
+      @args = (@{$opts{'pics_medium_cmd'}}, $pic, $fmed);
+      print "   Executing: " . join(" ", @args)  . "\n";
+      system(@args) == 0
+	or die "   System call failed: $?";
+      # Create Thumbnail Image
+      @args = (@{$opts{'pics_icon_cmd'}}, $pic, $fico);
+      print "   Executing: " . join(" ", @args) . "\n";
+      system(@args) == 0
+	or die "   System call failed: $?";
+    }
+  }
+
+
+  # *** Open file as filehandle
+  $ifile = new IO::File;
+  if ( $opts{'infile'} =~ /^(.+).gz$/) {  # gzip compressed file
+    $opts{'infile_plain'} = $1;      # remove compression suffix
+    print "Reading gzip'ed file $opts{'infile'}\n";
+    $ifile->open("gunzip -c $opts{'infile'} |")
+      or die "Failed opening $opts{'infile'} with gunzip";
+  } elsif ( $opts{'infile'} =~ /^(.+).bz2$/) {  # bzip2 compressed file
+    $opts{'infile_plain'} = $1;      # remove compression suffix
+    print "Reading bzip2'ed file $opts{'infile'}\n";
+    $ifile->open("bunzip2 -c $opts{'infile'} |")
+      or die "Failed opening $opts{'infile'} with bunzip2";
+  } elsif ( $opts{'infile'} =~ /^(.+).lzma$/) {  # lzma compressed file
+    $opts{'infile_plain'} = $1;      # remove compression suffix
+    print "Reading lzma'ed file $opts{'infile'}\n";
+    $ifile->open("lzma -d -c $opts{'infile'} |")
+      or die "Failed opening $opts{'infile'} with lzma";
+  } elsif ( $opts{'infile'} =~ /^(.+).xz$/) {  # xz compressed file
+    $opts{'infile_plain'} = $1;      # remove compression suffix
+    print "Reading xz'ed file $opts{'infile'}\n";
+    $ifile->open("xz -d -c $opts{'infile'} |")
+      or die "Failed opening $opts{'infile'} with xz";
+  } else {   # Uncompressed file
+    $opts{'infile_plain'} = $opts{'infile'};    # No name change
+    print "Reading file $opts{'infile'}\n";
+    $ifile->open($opts{'infile'},"r")
+      or die "Failed opening $opts{'infile'}";
+  }
+
+  # *** Do parsing depending on the modi selected
+  if ( $opts{'merge'} or defined $opts{'route'} ) {
+    # *** Single processing; thats easy
+
+    if ( ! $opts{'route'} ) { # parse every trkpt element when no route specified
+      print "Operation mode: Merge all track points to one file\n";
+      $twig = XML::Twig->new(
+			     TwigHandlers => {
+					      "trkpt" => \&read_trkpt_xml_handler,
+					     }
+			    );
+    } else {  # only parse specified route
+      print "Operation mode: Read only one route\n";
+      $twig = XML::Twig->new(
+             TwigHandlers => {
+	           "trk[string(name)=\"$opts{'route'}\"]" => \&read_trk_xml_handler
+			     }
+      );
+    }
+
+    print "Reading file $opts{'infile'} ...\n";
+    if ( $opts{'route'} ) {
+      print "   Reading track \"$opts{'route'}\" ...\n";
+    }
+
+    # Trigger XML parsing
+    $twig->parse($ifile)
+      or die "Failed parsing $opts{'infile'}";
+
+    # Set Title when not specified
+    if ( $opts{'title'} ) {  # When set just take it
+      $title = $opts{'title'};
+    } else {   # Derive it from route or program name
+      if ( $opts{'route'} ) { # Use route, when specified
+	$title = $opts{'route'};
+      } else {  # Can we get the first track name?
+	  my $firsttrackname = $twig->first_elt('gpx')->first_child('trk')->first_child_text('name');
+	  if ( $firsttrackname ) {
+	      # Out of whatever reason we must encode this, otherwise
+	      # We get later on in Gnuplot (!) trouble with special characters
+	      # Whyever ... hope it helps
+	      $title = encode_utf8($firsttrackname);
+	  } else {  # Nothing helps, so just use program name instead
+	      $title = $Prog_Name;
+	  }
+      }
+    }
+
+
+    # XML Cleanup
+    $ifile->close; # Close file again
+    $twig->purge;          # Throw away XML, is parsing is done
+
+    # Sanity check: Where values read?
+    if ( ! @points ) {
+      print "ERROR: Could not read any track points for this route\nAborting\n";
+      return 0;
+    }
+
+    # *** Do the mash-up
+    map_mashup($title);
+
+    return 0;         # exit without error
+  }  # Single processing done
+
+  # Now we're in the else path, which means we have to write out every
+  # single route in individual files
+  # Hand then whole work to the XML handler, which is called for each "trk"
+  print "Operation mode: Write each route into a separate file\n";
+  $twig = XML::Twig->new(
+	 TwigHandlers => {
+			  "trk" => \&process_trk_xml_handler
+	 }              );
+
+  # Trigger XML parsing
+  $twig->parse($ifile)
+    or die "Failed loading $opts{'infile'}";
+  $ifile->close; # Close file again
+
+  return 0;         # exit without error
+}
+
+
+# *** Handler for processing XML <trk> in individual-track mode ***
+{
+# Sub-routine "static" variable
+# Collects set of title, so that each title is individual
+my %used_titles;
+
+sub process_trk_xml_handler($$) {
+    my($t, $trk)= @_;        # Twig handler arguments: whole twig and <trk> part
+    my $title;               # Title of track
+
+    # Get title of track
+    if ( $opts{'title'} ) {      # Use command line title when availabe
+      $title = $opts{'title'};
+    } else {   # Take track name
+      # Out of whatever reason we must encode this, otherwise
+      # We get later on in Gnuplot (!) trouble with special characters
+      # Whyever ... hope it helps
+      $title = encode_utf8($trk->first_child_text('name'));
+      # When not defined, just use program name as last resort
+	$title = $Prog_Name
+	  unless $title;
+    }
+
+    while ($used_titles{$title} ) {
+      # Title name (and therefore file name) is not individual
+      # First of all, try to count up last number (when available)
+      if ( $title =~ /(.+\s+)(\d+)$/ ) {
+        $title = $1 . ($2+1);
+      } else {
+	# Otherwise add new suffix
+	$title .= " 2";
+      }
+    }
+    # okay, this title was not used yet
+    $used_titles{$title} = 1;
+
+    # Parsing itself is done by read handler
+    read_trk_xml_handler($t, $trk);
+
+    # Sanity check: Where values read?
+    if ( ! @points ) {
+      print "WARNING: Could not read any track points for this route (title $title)\n";
+      return 0;
+    }
+
+    # Do the mash-up
+    map_mashup($title);
+
+    # Now throw away this parsed track
+    $t->purge;
+
+    # Clean up global variables for next (possible) run
+    undef $dist;
+    undef @points;
+
+    return 0;    # do not continue process any other handlers (not there anyway)
+}
+}
+
+# ##############################################################################
+
+# *** Handler for parsing XML <trk> elements ***
+sub read_trk_xml_handler($$) {
+    my($t, $trk)= @_;
+
+    # Parse all trkpt points by trkpt handler, must be done by double loop
+    foreach my $trkseg ($trk->children("trkseg") ) {
+	foreach ( $trkseg->children("trkpt") ) {
+	    read_trkpt_xml_handler($t, $_)
+		or return 0;             # Just return error
+	}
+    }
+
+    return 1;    # continue processing with other handlers (if any)
+}
+
+# *** Handler for parsing XML <trkpt> elements ***
+sub read_trkpt_xml_handler($$) {
+    my($t, $trkpt)= @_;
+
+    my $lat     = $trkpt->att('lat');
+    my $lon     = $trkpt->att('lon');
+    my $ele;
+
+    $ele = $trkpt->first_child_text('ele'); # Try to fetch ele children
+    $ele = 0 unless      # No children, thus no elevation available
+	$ele;
+
+    push @points, {
+        lat => $lat, lon => $lon, ele => $ele
+		  };
+
+    return 1;    # continue processing with other handlers (if any)
+}
+
+# *** # Do map mash-up; API independent part ***
+# 1.P: Webpage title
+sub map_mashup($) {
+  # *** Variables
+  my $title   = shift;        # Title from parameter
+  my $geo     = Geo::Distance->new();
+  my $accdist = 0;   # Accumulated distance between map points
+  my @mpoints = ();  # Map points (reference to @points)
+  my @ppoints = ();  # Polyline points  (reference to @points)
+  my @hpoints = ();  # Height Profile points (reference to @points)
+  my $last_pt;       # Last point
+  my $k = 0;         # For distance/height calculation
+  my $mfilename;     # Output file name for Mashup
+  my $hfilename;      # Output file name for Height Profile (no path)
+  my $hfilename_path; # Output file name for Height Profile (with path)
+  my $hasc = 0;      # Accumulated Ascent Height
+  my $hdesc = 0;     # Accumulated Descent Height
+  my $hdiff;         # Height Difference (for calculation)
+
+  # *** Output file name, from input file name
+  {
+    if ( defined $opts{'outfile'} ) {  # An specific output file name is forced
+      my ($base,$path,$type) = fileparse($opts{'outfile'}, qr{\.[^\.]+});
+      $mfilename = $path . $base . ".html";  # Mashup
+      $hfilename = $base . ".png";   # Height Profile
+      # Height Profile name with path (where to write the file to)
+      $hfilename_path = $path . $hfilename;
+    } else {    # Do normal file name generation
+      my ($base,$path,$type) = fileparse($opts{'infile_plain'}, qr{\.[^\.]+});
+      my $fn_title = "";    # Add title name when supplied
+      if ( $title ) {
+	$fn_title = "-$title";
+	$fn_title =~ s/ /_/g;         # replace spaces by "_"
+      }
+      $mfilename = $path . $base . $fn_title . ".html";  # Mashup
+      $hfilename = $base . $fn_title . ".png";   # Height Profile
+      # Height Profile name with path (where to write the file to)
+      $hfilename_path = $path . $base . $fn_title . ".png";
+    }
+  }
+
+  # *** First of all fill distance parameter for the whole track
+  for my $trkpt (@points) {
+    if($last_pt) {
+      $k += $geo->distance("kilometer",
+			  $last_pt->{lon}, $last_pt->{lat},
+			  $trkpt->{lon},   $trkpt->{lat});
+      $trkpt->{dist} = $k;
+    } else {
+      $trkpt->{dist} = 0;  # Starting point
+    }
+    $last_pt = $trkpt;
+  }
+  # Total distance? Last track's distance
+  $dist = sprintf ( "%.2fkm", $points[$#points]->{dist} );
+  print "Total distance is " . $dist . " \n";
+
+  # *** Track Mashup: Only take selected points
+  # Reset values
+  undef $last_pt;
+  $k = 0;
+  for my $trkpt (@points) {
+    if($last_pt) {
+      $k = $trkpt->{dist} - $last_pt->{dist};
+      next if $k < $opts{'map_line_dist'};
+    } else {
+      # Add first point (Track start) always
+      push @mpoints, $trkpt;
+    }
+    $last_pt = $trkpt;
+    # First add line points
+    push @ppoints, $trkpt;
+    $accdist += $k;
+    # Also add as marker?
+    next if $accdist < $opts{'map_points_dist'};   # no, not needed
+    $accdist = 0;             # clear for next marker point
+    push @mpoints, $trkpt;
+  }
+  # And now also add last point (end of track)
+  # Only add it when it's not done in above loop
+  $last_pt = $points[$#points];
+  push @mpoints, $last_pt
+    unless $last_pt == $mpoints[$#mpoints];
+
+
+  # *** When requested, generate also a height profile
+  if ($opts{'height'} ) {
+    # *** Height Mashup: Only take selected points
+    # Reset values
+    undef $last_pt;
+    $k = 0;
+    $hdiff = 0;   # Set to zero, so we don't count first value as height change
+    for my $trkpt (@points) {
+       if($last_pt) {
+         $hdiff = $trkpt->{'ele'} - $k;  # Height difference between points
+	     # ignore this point when height change is too small
+         next if abs($hdiff) < $opts{'height_diff'};
+       } # else: Add first point (Track start) always
+       # Update accumulated height change
+       if ($hdiff > 0) {
+	     $hasc += $hdiff;      # We're ascending
+       } else {  # < 0
+	     $hdesc -= $hdiff;      # We're descending
+       }
+       # Add as new height point
+       $last_pt = $trkpt;
+       $k = $trkpt->{'ele'};
+       push @hpoints, $trkpt;
+     }
+     # And now also add last point (end of track)
+     # Only add it when it's not done in above loop
+     $last_pt = $points[$#points];
+    if ( $last_pt != $hpoints[$#hpoints] ) {
+      push @hpoints, $last_pt;
+    }
+
+
+    # Now let's create the height profile image
+    height_profile_image(@hpoints, $hfilename_path);
+  }  # if ($opts{'height'} )
+
+
+  # *** Call appropriate Mash-Up Function
+  if ( $opts{'google'} ) {
+    map_mashup_google(@ppoints, @mpoints, $mfilename, $hfilename, $hasc, $hdesc, $title);
+  } elsif ( $opts{'osm'} ) {
+    map_mashup_osm(@ppoints, @mpoints, $mfilename, $hfilename, $hasc, $hdesc, $title);
+  } elsif ( $opts{'yahoo'} ) {
+    map_mashup_yahoo(@ppoints, @mpoints, $mfilename, $hfilename, $hasc, $hdesc, $title);
+  }
+
+}
+
+# ##############################################################################
+
+
+# *** Create the height profile image ***
+# 1.P: Ref to height point array
+# 2.P: File name for height image
+sub height_profile_image(\@$) {
+
+  # *** Variables
+  my $pref = shift;      # Point reference
+  my $filename = shift;  # file name
+  my (@x, @y);           # Dataset
+  my $chart;             # Chart object
+  my $dataset;           # Dataset
+
+
+  # Transform Data to x and y
+  for my $trkpt (@$pref) {
+    push @x, $trkpt->{dist};
+    push @y, $trkpt->{ele};
+  }
+
+  # Create chart object and specify the properties of the chart
+  $chart = Chart::Gnuplot->new(
+	  output => $filename,
+	  title  => "Height Profile",
+	  xlabel => "Distance / km",
+	  ylabel => "Height / m",
+          # Background fill only for debug
+          # bg     => {
+          #   color   => "#c9c9ff",
+          #   density => 0.2,
+          # },
+          # 20% shorter in length, 50% shorter in height",
+	  imagesize => "0.8, 0.5",
+          grid => "on",
+ );
+
+  # Create dataset object and specify the properties of the dataset
+  $dataset = Chart::Gnuplot::DataSet->new(
+               xdata => \@x,
+               ydata => \@y,
+               # Normal line style
+               style => "lines",
+               width => 2,
+               # Mountain-Like style - trial, no complete fill yet
+               # style   => "filledcurves",
+               # width   => 1, # for filled curves, line width has no effect
+               # color   => "#823000",     # dark brown
+    );
+
+  # Plot the data set on the chart
+  print "Writing height chart to $filename ...\n";
+  $chart->plot2d($dataset);
+
+}
+
+
+# ##############################################################################
+
+# *** Map mash-up for Yahoo ***
+# 1.P: Ref to line points array
+# 2.P: Ref to marker array
+# 3.P: Output file name
+# 4.P: Height profile file name
+# 5.P: Accumulated Ascend
+# 6.P: Accumulated Descent
+# 7.P: Webpage title
+sub map_mashup_yahoo(\@\@$$$$$) {
+
+  # *** Variables
+  my ($lref, $mref, $outfile, $heightfile, $hasc, $hdesc, $title) = @_;      # Get arguments
+
+  # *** For yahoo just need to format distance to 1 character,
+  #     and set dist to "S" and "E" for first/last point
+  foreach (@$mref) {
+    $_->{dist} = sprintf ( "%.0f", $_->{dist} )
+      if $_->{dist};
+  }
+  $mref->[0]->{dist} = "S";
+  $mref->[$#$mref]->{dist} = "E";
+
+
+  # *** Mash-up
+  # Variables for template toolkit
+  # Out of whatever's reason you must UTF8-decode the file name to get it right ...
+  my $template = Template->new(
+			       OUTPUT =>  Encode::decode("UTF-8",$outfile),
+			       ABSOLUTE => 1         # Allow absolute file names
+			      );
+  my $vars     = { points   => $mref,
+		   line     => $lref,
+		   distance => $dist,
+		   title    => $title,
+		   apikey   => $opts{'map_key_yahoo'},
+		 };
+
+  # Print a warning about current broken and no height
+  print "WARNING: Yahoo Mashup is currently broken and Height Display or Image Mapping not implemented!\n";
+  print "         Your patches are welcome, I most likely won't touch it anymore\n";
+
+  # Create file
+  print "Writing yahoo file $outfile ...\n";
+  $template->process("$FindBin::RealBin/$opts{'map_template_yahoo'}", $vars) or
+    die $template->error() . "\n";
+
+
+}
+
+# ##############################################################################
+
+# *** Map mash-up for Google ***
+# 1.P: Ref to line points array
+# 2.P: Ref to marker array
+# 3.P: Output file name
+# 3.P: Height Profile file name
+# 5.P: Accumulated Ascend
+# 6.P: Accumulated Descent
+# 7.P: Webpage title
+sub map_mashup_google(\@\@$$$$$) {
+  # *** Variables
+  my ($lref, $mref, $outfile, $heightfile, $hasc, $hdesc, $title) = @_;      # Get arguments
+
+  # *** Preparation for Markers
+  # Distance with 2 digits and in km
+  foreach (@$mref) {
+    $_->{dist} = sprintf ( "%.2f km, Height: %.0fm", $_->{dist}, $_->{ele} )
+      if $_->{dist};
+  }
+  $mref->[0]->{dist} = sprintf ("0.00 km, Height: %.0fm, Start Point",
+			       $mref->[0]->{ele} );   # 1st point is start
+  $mref->[$#$mref]->{dist} = sprintf ("$dist, Height: %.0fm, End Point",
+				     $mref->[$#$mref]->{ele} ); # last point is total distance
+  # *** Mash-up
+  # Variables for template toolkit
+  # Out of whatever's reason you must UTF8-decode the file name to get it right ...
+  my $template = Template->new(
+			       OUTPUT =>  Encode::decode("UTF-8",$outfile),
+			       ABSOLUTE => 1         # Allow absolute file names
+			      );
+  my $vars     = { points   => $mref,
+		   line     => $lref,
+		   distance => $dist,
+		   title    => $title,
+		   height_enable  => $opts{'height'},
+		   height_file    => $heightfile,
+		   height_ascend  => sprintf("%.0f m", $hasc),  # Formatting
+		   height_descend => sprintf("%.0f m", $hdesc), # Formatting
+		   pics_enable    => $opts{'pics'}?1:0,
+		   pics_data      => $opts{'pics'},
+		 };
+
+  # Create file
+  print "Writing google file $outfile ...\n";
+  $template->process("$FindBin::RealBin/$opts{'map_template_google'}", $vars) or
+    die $template->error()  . "\n";
+
+}
+# ##############################################################################
+
+# *** Map mash-up for OpenStreetMaps ***
+# 1.P: Ref to line points array
+# 2.P: Ref to marker array
+# 3.P: Output file name
+# 3.P: Height Profile file name
+# 5.P: Accumulated Ascend
+# 6.P: Accumulated Descent
+# 7.P: Webpage title
+sub map_mashup_osm(\@\@$$$$$) {
+  # *** Variables
+  my ($lref, $mref, $outfile, $heightfile, $hasc, $hdesc, $title) = @_;      # Get arguments
+
+  # *** Preparation for Markers
+  # Distance with 2 digits and in km
+  foreach (@$mref) {
+    $_->{dist} = sprintf ( "%.2f km, Height: %.0fm", $_->{dist}, $_->{ele} )
+      if $_->{dist};
+  }
+  $mref->[0]->{dist} = sprintf ("0.00 km, Height: %.0fm, Start Point",
+			       $mref->[0]->{ele} );   # 1st point is start
+  $mref->[$#$mref]->{dist} = sprintf ("$dist, Height: %.0fm, End Point",
+				     $mref->[$#$mref]->{ele} ); # last point is total distance
+
+  # *** Mash-up
+  # Variables for template toolkit
+  # Out of whatever's reason you must UTF8-decode the file name to get it right ...
+  my $template = Template->new(
+			       OUTPUT =>  Encode::decode("UTF-8",$outfile),
+			       ABSOLUTE => 1         # Allow absolute file names
+			      );
+  my $vars     = { points   => $mref,
+		   line     => $lref,
+		   distance => $dist,
+		   title    => $title,
+		   height_enable  => $opts{'height'},
+		   height_file    => $heightfile,
+		   height_ascend  => sprintf("%.0f m", $hasc),  # Formatting
+		   height_descend => sprintf("%.0f m", $hdesc), # Formatting
+		   pics_enable    => $opts{'pics'}?1:0,
+		   pics_data      => $opts{'pics'},
+		 };
+
+  # Create file
+  print "Writing OpenStreetMaps file $outfile ...\n";
+  $template->process("$FindBin::RealBin/$opts{'map_template_osm'}", $vars) or
+    die $template->error()  . "\n";
+
+}
+
+# ##############################################################################
+
+# *** Invoke gpsbabel ***
+# 1.P: output file
+sub gpsbabel($) {
+  # Arguments
+  my $file = shift;
+
+  # Variables
+  my $babel_usb_port;
+
+
+  # Retreive USB port
+  open FH, "$opts{'gpsbabel_usbport_cmd'} |"
+      or die "Failed to open pipeline";
+  $babel_usb_port = <FH>;
+  chomp $babel_usb_port;
+  close FH;
+
+  # Build complete arguments array
+  my @args = (@{$opts{'gpsbabel_cmd_pre_port'}},
+	      $babel_usb_port,
+	      @{$opts{'gpsbabel_cmd_post_port'}},
+	      $file);
+
+  # Invoke gpsbabel
+  print join(" ", @args) . "\n";
+  if (! system(@args) == 0 ) {
+    print "gpsbabel failed: $?\n";
+    return 1;        # Error
+  }
+
+  return 0;       # no error
+
+}
+
+# ##############################################################################
+
+# *** reads the command line options ***
+sub read_commandline() {
+
+  # *** local variables
+  my $help;       # set to one if help screen is requested
+  my $ver;        # set to one if version is requested
+  my $babel;      # set to one when gpsbabel is requested
+                  # Input file is then gpsbabel output file
+  my @pics;       # Picture array, will be transformed to hash
+
+  Getopt::Long::Configure ();  # No bundling anymore, interferes with "=s{,}"
+  my $result = GetOptions(\%opts,
+			  'route|r=s',
+			  'title|t=s',
+			  'outfile|w=s',
+			  'height|profile!',
+                          'merge',
+			  'yahoo|y!',
+			  'osm|openstreetmaps|o!',
+			  'pictures|p=s{,}' => \@pics,
+			  'help|h|?' => \$help,
+			  'version|V' => \$ver,
+			  'babel' => \$babel,
+			 );
+  if (! $result) {
+    print STDERR "\nFailed to parse the command line options: Exiting\n";
+    exit 1;
+  }
+
+  if ( $ver) {
+    print versionstring(1)  . "\n";
+    exit 0;
+  }
+
+  if ( $help) {
+    print versionstring(1)  . "\n";
+    print $Help_Documentation;
+    exit 0;
+  }
+
+  # Wrong number of arguments; just display help text
+  if ( scalar @ARGV != 1 ) {
+    print "\nERROR: Wrong number of arguments!\n";
+    print versionstring(1)  . "\n";
+    print $Help_Documentation;
+    exit 1;
+  }
+
+  # Check when height is requested, whether height_module is available
+  if ($opts{'height'} and not $opts{'height_module'} ) {
+    print "ERROR: Height Profile is requested, but module Gnuplot " .
+          "could not be loaded!\n";
+    print "Either install Gnuplot module, or disable height profile with the " .
+           "--noheight option\n";
+    exit 1;
+  }
+
+  # Check when picture mode is requested, whether pictures_module is available
+  # and convert the pictures here into the $opts - Hash
+  if (@pics) {
+    if ( not $opts{'pics_module'} ) {
+      print "ERROR: Map pictures are requested, but module Image::ExifTool " .
+	"could not be loaded!\n";
+      print "Either install Image::ExifTool module, or don't use the picture mapping feature\n";
+      exit 1;
+    }
+    # else: Everything clear, put pics to array of hash as required
+    foreach (@pics) {
+      push @{$opts{'pics'}}, { 'name' => $_ };
+    }
+  }
+
+  # Check when more than one (or no) mode is selected
+  die "No Mash-Up type enabled - how can this happen?!"
+    unless $opts{google} or $opts{osm} or $opts{yahoo};
+  die "Both OpenStreetMaps and Yahoo Output requested - please decide for one"
+    if $opts{osm} and $opts{yahoo};
+
+  # When OSM or Yahoo is selected, then deselect Google Mashup
+  $opts{google} = 0 if $opts{osm} or $opts{yahoo};
+
+
+  # Check that an output file name can be only selected for --route or --merge
+  if ( defined $opts{'outfile'} ) {
+    die "An output file name can be only specified for --merge or --route operation"
+      unless defined $opts{'route'} or $opts{'merge'} ;
+  }
+
+  # Extract input file
+  $opts{'infile'} = $ARGV[0];
+
+  if ( $babel ) {
+    exit gpsbabel($opts{'infile'});           # GPS Babel is invoked
+  }
+
+}
+
+
+# *** return version string from svn revision ***
+# 1.P: true when printing verbose copyright string
+sub versionstring ($) {
+
+    my $verbose = shift;         # True when we should return long version
+    my $rev = '$LastChangedRevision: 435 $';
+    my $date = '$LastChangedDate: 2012-06-07 17:38:19 +0200 (Thu, 07 Jun 2012) $';
+
+    # Filter revision
+    $rev = $1 if $rev =~ /LastChangedRevision: (\d+)/;
+
+    # Filter date
+    $date = $1 if $date =~ /LastChangedDate: ([\d-]+)/;
+
+    return "$Prog_Name revision $rev from $date \n"
+       unless $verbose;
+
+    "$Prog_Name revision $rev from $date \n"
+      . 'Copyright (C) 2007-2009 Robert Lange (robert.lange@s1999.tu-chemnitz.de)' . "\n"
+      . 'Based on code by Mike Schilli, 2006 (m@perlmeister.com)' . "\n"
+      . "Licensed under the GNU General Public License\n"
+}

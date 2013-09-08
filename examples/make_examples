@@ -1,0 +1,17 @@
+#!/bin/sh
+# Rebuild examples
+
+gpx2map ischgl.xml
+mv -v ischgl-Ischgl.html ischgl-google.html
+gpx2map --osm ischgl.xml
+mv -v  ischgl-Ischgl.html ischgl-osm.html
+
+gpx2map juh.xml
+mv -v juh-juh.html juh-google.html
+gpx2map --osm juh.xml
+mv -v juh-juh.html juh-osm.html
+
+gpx2map monte_viso.gpx
+mv -v monte_viso-MONTE_VISO.html monte_viso-google.html
+gpx2map --osm monte_viso.gpx
+mv -v monte_viso-MONTE_VISO.html monte_viso-osm.html
