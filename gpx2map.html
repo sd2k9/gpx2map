@@ -88,22 +88,15 @@ The CPAN-Modules can be found at <a href="http://search.cpan.org">http://search.
 </p>
 
 <ul>
-  <li>Perl 5, tested with versions 5.8.8, 5.10.0</li>
-  <li>CPAN XML::Twig (debian packet libxml-twig-perl), tested with versions 1:3.26-2, 1:3.32-1</li>
-  <li>CPAN Template (debian packet libtemplate-perl), tested with versions 2.14-1, 2.19-1</li>
-  <li>CPAN Geo::Distance, tested with version 2.11</li>
-  <li>Optional CPAN Chart::Gnuplot (debian packet libchart-gnuplot-perl), tested with version 0.10-1, 0.15-2</li>
-  <li>Optional CPAN Image::ExifTool (debian packet libimage-exiftool-perl), tested with version 8.15-1</li>
-  <li>Optional Tool convert from the ImageMagick suite (debian packet imagemagick), tested with version 8:6.6.0.4-2.1</li>
+  <li>Perl 5, tested with versions 5.8.8, 5.10.0, ...</li>
+  <li>CPAN XML::Twig (Debian packet libxml-twig-perl), tested with versions 1:3.26-2, 1:3.32-1</li>
+  <li>CPAN Template (Debian packet libtemplate-perl), tested with versions 2.14-1, 2.19-1</li>
+  <li>CPAN Geo::Distance (Debian packet libgeo-distance-perl), tested with version 2.11, 0.19-1</li>
+  <li>Optional CPAN Chart::Gnuplot (Debian packet libchart-gnuplot-perl), tested with version 0.10-1, 0.15-2</li>
+  <li>Optional CPAN Image::ExifTool (Debian packet libimage-exiftool-perl), tested with version 8.15-1</li>
+  <li>Optional Tool convert from the ImageMagick suite (Debian packet imagemagick), tested with version 8:6.6.0.4-2.1</li>
 
 </ul>
-
-<p>For Geo::Distance no pre-packaged version was available at the time of
-gpx2map development. Thus, there is an special work-around available: When
- Geo::Distance is not found globally, then as a second try it 
-is searched in the directory <code>cpan/</code> below the executable.
-When you have Geo::Distance installed at your system then you can safely
-delete the directory cpan/ in the distribution.</p>
 
 <p>Chart::Gnuplot is required for drawing the height graph. When you don't
 want to use this feature this package is not needed.</p>
@@ -122,11 +115,6 @@ drop me a note.</p>
 Put the mash-up template files <code>gpx2map.google.template</code>,
  <code>gpx2map.osm.template</code> and <code>gpx2map.yahoo.template</code>
 where you put gpx2map itself (not to the link, in case you linked it).
-</p>
-
-<p>When you don't have the CPAN module Geo::Distance installed then
-you also need to place the sub-directory <code>cpan/</code> below
-the location you put <code>gpx2map</code> into. See also section <a href="#req">Requirements</a>.
 </p>
 
 

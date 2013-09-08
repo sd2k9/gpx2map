@@ -139,16 +139,7 @@ use FindBin;            # Find local directory
 use File::Basename;     # File's basename
 use IO::File;           # IO File Handler, to allow also compressed files
 use Encode;             # To allow unicode caracters in file names
-
-# Geo::Distance package is on my system locally installed,
-# but of course prefer global version
-if (! eval "use Geo::Distance; 1") {
-  # Not found globally, try local
-  use lib "$FindBin::RealBin/cpan";
-  use Geo::Distance;      # Distance calculation (locally)
-}
-
-
+use Geo::Distance;      # Distance calculation
 
 # In case the Gnuplot module is available, use it
 # it's needed for the height plot
