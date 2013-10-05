@@ -14,7 +14,7 @@
 #
 # gpx2map - Reads a gps track in GPX format and writes out an Google Map or or OpenStreetMaps
 #           mash-up containing the route and additonal information
-# Copyright (C) 2007-2010,2013 Robert Lange <robert.lange@s1999.tu-chemnitz.de>
+# Copyright (C) 2007-2010,2013 Robert Lange <sd2k9@sethdepot.org>
 #
 #  This program is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License version 3
@@ -1103,7 +1103,7 @@ sub versionstring ($) {
        unless $verbose;
 
     "$Prog_Name revision $rev $date\n"
-      . 'Copyright (C) 2007-2010,2013 Robert Lange <robert.lange@s1999.tu-chemnitz.de>' . "\n"
+      . 'Copyright (C) 2007-2010,2013 Robert Lange <sd2k9@sethdepot.org>' . "\n"
       . 'Based on code by Mike Schilli, 2006 (m@perlmeister.com)' . "\n"
       . 'This program comes with ABSOLUTELY NO WARRANTY.'  . "\n"
       . 'This program is free software: you can redistribute it and/or modify' . "\n"
