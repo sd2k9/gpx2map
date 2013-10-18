@@ -29,8 +29,8 @@
      [%- FOREACH point = points %]
      var point = new google.maps.LatLng([% point.lat %], [% point.lon %]);
      var marker[% loop.index %] = new google.maps.Marker({
-      position: point, 
-      map: map, 
+      position: point,
+      map: map,
       [%- IF loop.first %]
       [%- # First track point: "S" %]
       icon: "http://www.google.com/mapfiles/markerS.png",
@@ -159,6 +159,14 @@
   <!-- Height Display -->
   <div  style="text-align:center">
      <img alt="Height Profile" src="[% height_file %]" />
+  </div>
+  [%- END %]
+
+  [%- IF tempe_enable %]
+  [%- # Only print when temperature display is enabled %]
+  <!-- Temperature Display -->
+  <div  style="text-align:center">
+     <img alt="Temperature Profile" src="[% tempe_file %]" />
   </div>
   [%- END %]
 

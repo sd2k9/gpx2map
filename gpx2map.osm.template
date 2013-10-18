@@ -206,5 +206,13 @@
   </div>
   [%- END %]
 
+  [%- IF tempe_enable %]
+  [%- # Only print when temperature display is enabled %]
+  <!-- Temperature Display -->
+  <div  style="text-align:center">
+     <img alt="Temperature Profile" src="[% tempe_file %]" />
+  </div>
+  [%- END %]
+
 </body>
 </html>

@@ -65,9 +65,13 @@ my %opts = (        # Processed options for use in the program
     # when true (1) create a height profile, not for 0 (by command line)
     # Change default here, can be overridden by command line
     height => 1,
-    # Is the Gnuplot module available, which is needed by height?
+    # when true (1) create a temperature profile, not for 0 (by command line)
+    # Temperature provided by Garmin tempe sensor
+    # Change default here, can be overridden by command line
+    tempe => 1,
+    # Is the Gnuplot module available, which is needed by height and tempe?
     # This is set by the program itself, no modification here
-    # height_module
+    # gnuplot_module
 
     # when defined and a list of IMG files put also pictures on the map
     # Is supplied by command line
@@ -98,6 +102,8 @@ my %opts = (        # Processed options for use in the program
     map_points_dist => '2.0',        # 2000 meter
     # Height Difference between height diagram points in meters
     height_diff => '25',        #   25 meter
+    # Temperature Difference between tempe diagram points in grad celcius
+    tempe_diff => '0.25',        #   1/4 °C
 
     # Settings for Picture preparation and placement on the map
     # Insert this to the medium size image name, e.g. hi.jpg -> hi.med.jpg
@@ -144,10 +150,10 @@ use Geo::Distance;      # Distance calculation
 # In case the Gnuplot module is available, use it
 # it's needed for the height plot
 if (eval "use Chart::Gnuplot; 1") {
-  $opts{'height_module'} = 1;
+  $opts{'gnuplot_module'} = 1;
 } else {
   # We don't have it, so no height plot possible
-  $opts{'height_module'} = 0;
+  $opts{'gnuplot_module'} = 0;
 }
 
 # In case the Image::ExifTool module is available, use it
@@ -176,10 +182,15 @@ sub read_trk_xml_handler($$);
 # Do map mash-up; API independent part
 # 1.P: Webpage title
 sub map_mashup($);
-# Create the height profile image
-# 1.P: Ref to height point array
-# 2.P: File name for height image
-sub height_profile_image(\@$);
+# Create a gnuplot graph image
+# 1.P: Ref to point array
+# 2.P: File name for image
+# 3.P: Plot title
+# 4.P: x-axis data, extracted from point array
+# 5.P: x-axis label
+# 6.P: y-axis data, extracted from point array
+# 7.P: y-axis label
+sub gnuplot_profile_image(\@$$$$$$);
 # Map mash-up  for Google
 # 1.P: Ref to line points array
 # 2.P: Ref to marker array
@@ -187,8 +198,9 @@ sub height_profile_image(\@$);
 # 4.P: Height profile file name
 # 5.P: Accumulated Ascend
 # 6.P: Accumulated Descent
-# 7.P: Webpage title
-sub map_mashup_google(\@\@$$$$$);
+# 7.P: Tempe Profile file name
+# 8.P: Webpage title
+sub map_mashup_google(\@\@$$$$$$);
 # Map mash-up  for OpenStreetMaps
 # 1.P: Ref to line points array
 # 2.P: Ref to marker array
@@ -196,8 +208,9 @@ sub map_mashup_google(\@\@$$$$$);
 # 4.P: Height profile file name
 # 5.P: Accumulated Ascend
 # 6.P: Accumulated Descent
-# 7.P: Webpage title
-sub map_mashup_osm(\@\@$$$$$);
+# 7.P: Tempe Profile file name
+# 8.P: Webpage title
+sub map_mashup_osm(\@\@$$$$$$);
 # Map mash-up  for Yahoo
 # 1.P: Ref to line points array
 # 2.P: Ref to marker array
@@ -211,12 +224,13 @@ sub map_mashup_yahoo(\@\@$$$$$);
 # 1.P: output file
 sub gpsbabel($);
 
-
 # *** global variables/constants ***
 # Program name (constant)
 our $Prog_Name = "gpx2map";
 # Array of Hash of track points
-# Hash entries: lat(itude), lon(itude), ele(vation - zero when not available)
+# Hash entries: lat(itude), lon(itude), ele(vation) - zero when not available,
+#               time - undef when not available,
+#               tempe(rature) - undef when not available,
 #               dist(ance - added for considered points)
 my @points = ();
 # Calculated overall distance
@@ -231,7 +245,14 @@ if ( $opts{'height'} ) {
 } else  {
   $Height_Default = "Enable or Disable (Default)";
 }
-# This also 
+# This also
+our $Tempe_Default;
+if ( $opts{'tempe'} ) {
+  $Tempe_Default = "Enable (Default) or Disable";
+} else  {
+  $Tempe_Default = "Enable or Disable (Default)";
+}
+# This also
 our $Pictures_Available;
 if ( not $opts{'pics_module'} ) {
   $Pictures_Available = " (not available,\n" .
@@ -249,7 +270,8 @@ Mash-up containing the route.
 USAGE
 
      $Prog_Name [--help|-h] [--version|-V] [--route|-r route] [--merge]
-             [--title|-t title] [--osm|-o] [--yahoo|-y] [--[no]height]
+             [--title|-t title] [--osm|-o] [--yahoo|-y]
+             [--[no]height] [--[no]tempe]
              [--outfile|-w file] inputfile [--pictures|-p img1 img2 ...]
 
        --help, -h                This help screen
@@ -271,6 +293,9 @@ USAGE
                                  output path+base filename can be given
 
        --height|--noheight       $Height_Default height profile
+
+       --tempe|--notempe         $Tempe_Default Temperature profile
+                                 Data provided by Garmin Tempe sensor
 
        --pictures img1 img2 ...  Place a shrinked version of these images
        -p img1 img2 img3 ...     on the map, Pictures must include GPS
@@ -469,7 +494,6 @@ sub main() {
       }
     }
 
-
     # XML Cleanup
     $ifile->close; # Close file again
     $twig->purge;          # Throw away XML, is parsing is done
@@ -584,17 +608,54 @@ sub read_trk_xml_handler($$) {
 sub read_trkpt_xml_handler($$) {
     my($t, $trkpt)= @_;
 
-    my $lat     = $trkpt->att('lat');
-    my $lon     = $trkpt->att('lon');
+    my $lat;
+    my $lon;
     my $ele;
+    my $time;
+    my $tempe;
+    my $tmp;         # Intermediate values
 
-    $ele = $trkpt->first_child_text('ele'); # Try to fetch ele children
-    $ele = 0 unless      # No children, thus no elevation available
+    # Fetch Data
+    # Template:
+    # <trkpt lat="47.658889974" lon="9.603510657">
+    #   <ele>477.430000</ele>
+    #   <time>2013-09-07T15:14:45Z</time>
+    # <extensions><gpxtpx:TrackPointExtension>22.9</gpxtpx:TrackPointExtension>
+    # </extensions>
+    # </trkpt>
+    # Coordinate
+    $lat = $trkpt->att('lat');
+    $lon = $trkpt->att('lon');
+    # Try to fetch ele children
+    $ele = 0.0 + $trkpt->first_child_text('ele');
+    $ele = 0.0 unless      # No children, thus no elevation available
 	$ele;
+    # Try to fetch time
+    $time = $trkpt->first_child_text('time');
+    $time = 0 unless      # No children, thus no elevation available
+	$time;
+    # Try to fetch tempe sensor reading
+    $tempe = 0.0;        # Default value
+    $tmp = $trkpt->first_child('extensions');
+    if ($tmp) {
+	$tmp = $tmp->first_child_text('gpxtpx:TrackPointExtension');
+	if ($tmp) {
+	    # We got a value
+	    $tempe = 0.0 + $tmp;
+	}
+    }
 
     push @points, {
-        lat => $lat, lon => $lon, ele => $ele
+        lat => $lat, lon => $lon, ele => $ele,
+	time => $time, tempe => $tempe
 		  };
+
+    # Deep Debug
+    # use Data::Dumper;
+    # print Dumper({
+    #     lat => $lat, lon => $lon, ele => $ele,
+    # 	time => $time, tempe => $tempe
+    # 		  });
 
     return 1;    # continue processing with other handlers (if any)
 }
@@ -609,11 +670,14 @@ sub map_mashup($) {
   my @mpoints = ();  # Map points (reference to @points)
   my @ppoints = ();  # Polyline points  (reference to @points)
   my @hpoints = ();  # Height Profile points (reference to @points)
+  my @tpoints = ();  # Temperature Profile points (reference to @points)
   my $last_pt;       # Last point
   my $k = 0;         # For distance/height calculation
   my $mfilename;     # Output file name for Mashup
   my $hfilename;      # Output file name for Height Profile (no path)
   my $hfilename_path; # Output file name for Height Profile (with path)
+  my $tfilename;      # Output file name for Tempe Profile (no path)
+  my $tfilename_path; # Output file name for Tempe Profile (with path)
   my $hasc = 0;      # Accumulated Ascent Height
   my $hdesc = 0;     # Accumulated Descent Height
   my $hdiff;         # Height Difference (for calculation)
@@ -623,9 +687,11 @@ sub map_mashup($) {
     if ( defined $opts{'outfile'} ) {  # An specific output file name is forced
       my ($base,$path,$type) = fileparse($opts{'outfile'}, qr{\.[^\.]+});
       $mfilename = $path . $base . ".html";  # Mashup
-      $hfilename = $base . ".png";   # Height Profile
-      # Height Profile name with path (where to write the file to)
+      $hfilename = $base . "-height.png";    # Height Profile
+      $tfilename = $base . "-tempe.png";     # Tempe Profile
+      # Height/Tempe Profile name with path (where to write the file to)
       $hfilename_path = $path . $hfilename;
+      $tfilename_path = $path . $tfilename;
     } else {    # Do normal file name generation
       my ($base,$path,$type) = fileparse($opts{'infile_plain'}, qr{\.[^\.]+});
       my $fn_title = "";    # Add title name when supplied
@@ -634,9 +700,11 @@ sub map_mashup($) {
 	$fn_title =~ s/ /_/g;         # replace spaces by "_"
       }
       $mfilename = $path . $base . $fn_title . ".html";  # Mashup
-      $hfilename = $base . $fn_title . ".png";   # Height Profile
-      # Height Profile name with path (where to write the file to)
-      $hfilename_path = $path . $base . $fn_title . ".png";
+      $hfilename = $base . $fn_title . "-height.png";    # Height Profile
+      $tfilename = $base . $fn_title . "-tempe.png";     # Tempe Profile
+      # Height/Tempe Profile name with path (where to write the file to)
+      $hfilename_path = $path . $hfilename;
+      $tfilename_path = $path . $tfilename;
     }
   }
 
@@ -684,7 +752,7 @@ sub map_mashup($) {
     unless $last_pt == $mpoints[$#mpoints];
 
 
-  # *** When requested, generate also a height profile
+  # *** When requested generate also a height profile
   if ($opts{'height'} ) {
     # *** Height Mashup: Only take selected points
     # Reset values
@@ -715,19 +783,57 @@ sub map_mashup($) {
       push @hpoints, $last_pt;
     }
 
+    # Now let's create the height profile image
+    gnuplot_profile_image(@hpoints, $hfilename_path, "Height Profile",
+			  'dist', "Distance / km",
+			  'ele', "Height / m");
+  }  # if ($opts{'height'} )
+
+
+  # *** When requested generate also a temperature profile
+  # Abuse above height variables here
+  if ($opts{'tempe'} ) {
+    # *** Tempe Mashup: Only take selected points
+    # Reset values
+    undef $last_pt;
+    $k = 0;
+    $hdiff = 0;   # Set to zero, so we don't count first value as tempe change
+    for my $trkpt (@points) {
+       if($last_pt) {
+         $hdiff = $trkpt->{'tempe'} - $k;  # Tempe difference between points
+	     # ignore this point when tempe change is too small
+         next if abs($hdiff) < $opts{'tempe_diff'};
+       } # else: Add first point (Track start) always
+       # Add as new tempe point
+       $last_pt = $trkpt;
+       $k = $trkpt->{'tempe'};
+       push @tpoints, $trkpt;
+     }
+     # And now also add last point (end of track)
+     # Only add it when it's not done in above loop
+     $last_pt = $points[$#points];
+    if ( $last_pt != $tpoints[$#tpoints] ) {
+      push @tpoints, $last_pt;
+    }
 
     # Now let's create the height profile image
-    height_profile_image(@hpoints, $hfilename_path);
-  }  # if ($opts{'height'} )
+    gnuplot_profile_image(@tpoints, $tfilename_path,
+			  "Temperature Profile",
+			  'dist', "Distance / km",
+			  'tempe', "Temp / deg C");
+  }  # if ($opts{'tempe'} )
 
 
   # *** Call appropriate Mash-Up Function
   if ( $opts{'google'} ) {
-    map_mashup_google(@ppoints, @mpoints, $mfilename, $hfilename, $hasc, $hdesc, $title);
+    map_mashup_google(@ppoints, @mpoints, $mfilename, $hfilename, $hasc, $hdesc,
+		      $tfilename, $title);
   } elsif ( $opts{'osm'} ) {
-    map_mashup_osm(@ppoints, @mpoints, $mfilename, $hfilename, $hasc, $hdesc, $title);
+    map_mashup_osm(@ppoints, @mpoints, $mfilename, $hfilename, $hasc, $hdesc,
+		   $tfilename, $title);
   } elsif ( $opts{'yahoo'} ) {
-    map_mashup_yahoo(@ppoints, @mpoints, $mfilename, $hfilename, $hasc, $hdesc, $title);
+    map_mashup_yahoo(@ppoints, @mpoints, $mfilename, $hfilename, $hasc, $hdesc,
+		     $title);
   }
 
 }
@@ -735,31 +841,39 @@ sub map_mashup($) {
 # ##############################################################################
 
 
-# *** Create the height profile image ***
-# 1.P: Ref to height point array
-# 2.P: File name for height image
-sub height_profile_image(\@$) {
+# *** Create a gnuplot graph image ***
+# 1.P: Ref to point array
+# 2.P: File name for image
+# 3.P: Plot title
+# 4.P: x-axis data, extracted from point array
+# 5.P: x-axis label
+# 6.P: y-axis data, extracted from point array
+# 7.P: y-axis label
+sub gnuplot_profile_image(\@$$$$$$) {
 
   # *** Variables
-  my $pref = shift;      # Point reference
-  my $filename = shift;  # file name
+  # Arguments
+  my ($pref, $filename, $title,
+      $xdata, $xlabel,
+      $ydata, $ylabel) = @_;
   my (@x, @y);           # Dataset
   my $chart;             # Chart object
   my $dataset;           # Dataset
 
-
   # Transform Data to x and y
+ # print $xlabel . "\n";
   for my $trkpt (@$pref) {
-    push @x, $trkpt->{dist};
-    push @y, $trkpt->{ele};
+    push @x, $trkpt->{$xdata};
+    push @y, $trkpt->{$ydata};
+    # print $trkpt->{lat}  . " " . $trkpt->{lon}  . " " .$trkpt->{$xdata} . " " . $trkpt->{$ydata} . "\n";
   }
 
   # Create chart object and specify the properties of the chart
   $chart = Chart::Gnuplot->new(
 	  output => $filename,
-	  title  => "Height Profile",
-	  xlabel => "Distance / km",
-	  ylabel => "Height / m",
+	  title  => $title,
+	  xlabel => $xlabel,
+	  ylabel => $ylabel,
           # Background fill only for debug
           # bg     => {
           #   color   => "#c9c9ff",
@@ -784,7 +898,7 @@ sub height_profile_image(\@$) {
     );
 
   # Plot the data set on the chart
-  print "Writing height chart to $filename ...\n";
+  print "Writing " . $title . " height chart to $filename ...\n";
   $chart->plot2d($dataset);
 
 }
@@ -850,10 +964,12 @@ sub map_mashup_yahoo(\@\@$$$$$) {
 # 3.P: Height Profile file name
 # 5.P: Accumulated Ascend
 # 6.P: Accumulated Descent
-# 7.P: Webpage title
-sub map_mashup_google(\@\@$$$$$) {
+# 7.P: Tempe Profile file name
+# 8.P: Webpage title
+sub map_mashup_google(\@\@$$$$$$) {
   # *** Variables
-  my ($lref, $mref, $outfile, $heightfile, $hasc, $hdesc, $title) = @_;      # Get arguments
+  # Get arguments
+  my ($lref, $mref, $outfile, $heightfile, $hasc, $hdesc, $tempefile, $title) = @_;
 
   # *** Preparation for Markers
   # Distance with 2 digits and in km
@@ -880,6 +996,8 @@ sub map_mashup_google(\@\@$$$$$) {
 		   height_file    => $heightfile,
 		   height_ascend  => sprintf("%.0f m", $hasc),  # Formatting
 		   height_descend => sprintf("%.0f m", $hdesc), # Formatting
+		   tempe_enable  => $opts{'tempe'},
+		   tempe_file    => $tempefile,
 		   pics_enable    => $opts{'pics'}?1:0,
 		   pics_data      => $opts{'pics'},
 		 };
@@ -900,9 +1018,10 @@ sub map_mashup_google(\@\@$$$$$) {
 # 5.P: Accumulated Ascend
 # 6.P: Accumulated Descent
 # 7.P: Webpage title
-sub map_mashup_osm(\@\@$$$$$) {
+sub map_mashup_osm(\@\@$$$$$$) {
   # *** Variables
-  my ($lref, $mref, $outfile, $heightfile, $hasc, $hdesc, $title) = @_;      # Get arguments
+  # Get arguments
+  my ($lref, $mref, $outfile, $heightfile, $hasc, $hdesc, $tempefile, $title) = @_;
 
   # *** Preparation for Markers
   # Distance with 2 digits and in km
@@ -930,6 +1049,8 @@ sub map_mashup_osm(\@\@$$$$$) {
 		   height_file    => $heightfile,
 		   height_ascend  => sprintf("%.0f m", $hasc),  # Formatting
 		   height_descend => sprintf("%.0f m", $hdesc), # Formatting
+		   tempe_enable  => $opts{'tempe'},
+		   tempe_file    => $tempefile,
 		   pics_enable    => $opts{'pics'}?1:0,
 		   pics_data      => $opts{'pics'},
 		 };
@@ -994,7 +1115,8 @@ sub read_commandline() {
 			  'route|r=s',
 			  'title|t=s',
 			  'outfile|w=s',
-			  'height|profile!',
+			  'height!',
+			  'tempe!',
                           'merge',
 			  'yahoo|y!',
 			  'osm|openstreetmaps|o!',
@@ -1027,12 +1149,20 @@ sub read_commandline() {
     exit 1;
   }
 
-  # Check when height is requested, whether height_module is available
-  if ($opts{'height'} and not $opts{'height_module'} ) {
+  # Check when height is requested, whether gnuplot_module is available
+  if ($opts{'height'} and not $opts{'gnuplot_module'} ) {
     print "ERROR: Height Profile is requested, but module Gnuplot " .
           "could not be loaded!\n";
     print "Either install Gnuplot module, or disable height profile with the " .
            "--noheight option\n";
+    exit 1;
+  }
+  # Check when tempe is requested, whether gnuplot_module is available
+  if ($opts{'tempe'} and not $opts{'gnuplot_module'} ) {
+    print "ERROR: Temperature Profile is requested, but module Gnuplot " .
+          "could not be loaded!\n";
+    print "Either install Gnuplot module, or disable temperature sensor with the " .
+           "--notempe option\n";
     exit 1;
   }
 
