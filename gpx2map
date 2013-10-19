@@ -874,25 +874,30 @@ sub gnuplot_profile_image(\@$$$$$$) {
   # Because of Tempe first or last value of @y could be undef
   # Need to interpolate by next value
   if (! defined($y[0])) {
-      # Take next one - error when only this one value
-      if ($#y == 0) {
-	  print "WARNING: gnuplot_profile_image - Interpolation of first value failed, expect a strange graph for " . $title . "\n";
-      } else {
-	  $y[0] = $y[1]
-      }
+      # Take next one - error when only this one value - this shoul not happen
+	 die "ERROR: gnuplot_profile_image - only one value y-value for "  . $title . " - this shoul not happen"
+	     unless $#y > 0;
+	 $y[0] = $y[1]
   }
   if (! defined($y[$#y])) {
-      # Take previous one - error when only this one value
-      if ($#y == 0) {
-	  print "WARNING: gnuplot_profile_image - Interpolation of last value failed, expect a strange graph for " . $title . "\n";
-      } else {
+      # Take next one - error when only this one value - this shoul not happen
+	 die "ERROR: gnuplot_profile_image - only one value y-value for "  . $title . " - this shoul not happen"
+	     unless $#y > 0;
 	  $y[$#y] = $y[$#y-1]
-      }
+  }
+  # One special case can occur when there is no tempe data at all:
+  # Two undef values
+  # Solution: Check first and last value and replace with -1 and +1
+  if ( (! defined($y[0])) &&  (! defined($y[$#y])) ) {
+      $y[0]   = -1;
+      $y[$#y] = +1;
   }
 
-  use Data::Dumper;
-  print Dumper(@x);
-  print Dumper(@y);
+  # Deep Debug
+  # use Data::Dumper;
+  # print $title . "\n";
+  # print Dumper(@x);
+  # print Dumper(@y);
 
   # Create chart object and specify the properties of the chart
   $chart = Chart::Gnuplot->new(
