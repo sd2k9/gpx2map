@@ -632,10 +632,9 @@ sub read_trkpt_xml_handler($$) {
 	$ele;
     # Try to fetch time
     $time = $trkpt->first_child_text('time');
-    $time = 0 unless      # No children, thus no elevation available
-	$time;
+    # undef: No children, thus no elevation available
     # Try to fetch tempe sensor reading
-    $tempe = 0.0;        # Default value
+    undef $tempe;        # Default value is undefined
     $tmp = $trkpt->first_child('extensions');
     if ($tmp) {
 	$tmp = $tmp->first_child_text('gpxtpx:TrackPointExtension');
@@ -800,13 +799,17 @@ sub map_mashup($) {
     $hdiff = 0;   # Set to zero, so we don't count first value as tempe change
     for my $trkpt (@points) {
        if($last_pt) {
+	 # Skip undefined points
+	 next unless
+	     defined($trkpt->{'tempe'});
          $hdiff = $trkpt->{'tempe'} - $k;  # Tempe difference between points
 	     # ignore this point when tempe change is too small
          next if abs($hdiff) < $opts{'tempe_diff'};
        } # else: Add first point (Track start) always
        # Add as new tempe point
        $last_pt = $trkpt;
-       $k = $trkpt->{'tempe'};
+       $k = $trkpt->{'tempe'} if
+	    $trkpt->{'tempe'};         # Do skip when 1st value is undefined
        push @tpoints, $trkpt;
      }
      # And now also add last point (end of track)
@@ -867,6 +870,29 @@ sub gnuplot_profile_image(\@$$$$$$) {
     push @y, $trkpt->{$ydata};
     # print $trkpt->{lat}  . " " . $trkpt->{lon}  . " " .$trkpt->{$xdata} . " " . $trkpt->{$ydata} . "\n";
   }
+
+  # Because of Tempe first or last value of @y could be undef
+  # Need to interpolate by next value
+  if (! defined($y[0])) {
+      # Take next one - error when only this one value
+      if ($#y == 0) {
+	  print "WARNING: gnuplot_profile_image - Interpolation of first value failed, expect a strange graph for " . $title . "\n";
+      } else {
+	  $y[0] = $y[1]
+      }
+  }
+  if (! defined($y[$#y])) {
+      # Take previous one - error when only this one value
+      if ($#y == 0) {
+	  print "WARNING: gnuplot_profile_image - Interpolation of last value failed, expect a strange graph for " . $title . "\n";
+      } else {
+	  $y[$#y] = $y[$#y-1]
+      }
+  }
+
+  use Data::Dumper;
+  print Dumper(@x);
+  print Dumper(@y);
 
   # Create chart object and specify the properties of the chart
   $chart = Chart::Gnuplot->new(
