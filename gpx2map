@@ -632,7 +632,7 @@ sub read_trkpt_xml_handler($$) {
 	$ele;
     # Try to fetch time
     $time = $trkpt->first_child_text('time');
-    # undef: No children, thus no elevation available
+    # undef: No children, thus no time available
     # Try to fetch tempe sensor reading
     undef $tempe;        # Default value is undefined
     $tmp = $trkpt->first_child('extensions');
@@ -823,7 +823,7 @@ sub map_mashup($) {
     gnuplot_profile_image(@tpoints, $tfilename_path,
 			  "Temperature Profile",
 			  'dist', "Distance / km",
-			  'tempe', "Temp / deg C");
+			  'tempe', "Temp / °C");
   }  # if ($opts{'tempe'} )
 
 
@@ -902,7 +902,8 @@ sub gnuplot_profile_image(\@$$$$$$) {
   # Create chart object and specify the properties of the chart
   $chart = Chart::Gnuplot->new(
 	  output => $filename,
-	  title  => $title,
+          encoding => 'utf8',           # Handle special characters in text
+          title  => $title,
 	  xlabel => $xlabel,
 	  ylabel => $ylabel,
           # Background fill only for debug
