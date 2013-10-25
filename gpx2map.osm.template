@@ -214,5 +214,13 @@
   </div>
   [%- END %]
 
+  [%- IF time_enable %]
+  [%- # Only print when time display is enabled %]
+  <!-- Time Display -->
+  <div  style="text-align:center">
+     <img alt="Time vs. Distance Profile" src="[% time_file %]" />
+  </div>
+  [%- END %]
+
 </body>
 </html>

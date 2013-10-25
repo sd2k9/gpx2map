@@ -69,7 +69,10 @@ my %opts = (        # Processed options for use in the program
     # Temperature provided by Garmin tempe sensor
     # Change default here, can be overridden by command line
     tempe => 1,
-    # Is the Gnuplot module available, which is needed by height and tempe?
+    # when true (1) create a time profile, not for 0 (by command line)
+    # Change default here, can be overridden by command line
+    time => 1,
+    # Is the Gnuplot module available, which is needed by height, time and tempe?
     # This is set by the program itself, no modification here
     # gnuplot_module
 
@@ -104,6 +107,12 @@ my %opts = (        # Processed options for use in the program
     height_diff => '25',        #   25 meter
     # Temperature Difference between tempe diagram points in grad celcius
     tempe_diff => '0.25',        #   1/4 °C
+    # Time difference between time diagram points
+    # For now let gnuchart decide, so no need to parse time ourself :->
+    # time_diff => '???',        #   ???k time-unit
+    # Time format for Gnuplot module
+    # Template for tag:  <time>2013-09-07T15:14:45Z</time>
+    time_format => '%Y-%m-%dT%H:%M:%SZ',
 
     # Settings for Picture preparation and placement on the map
     # Insert this to the medium size image name, e.g. hi.jpg -> hi.med.jpg
@@ -199,8 +208,9 @@ sub gnuplot_profile_image(\@$$$$$$);
 # 5.P: Accumulated Ascend
 # 6.P: Accumulated Descent
 # 7.P: Tempe Profile file name
-# 8.P: Webpage title
-sub map_mashup_google(\@\@$$$$$$);
+# 8.P: Time Profile file name
+# 9.P: Webpage title
+sub map_mashup_google(\@\@$$$$$$$);
 # Map mash-up  for OpenStreetMaps
 # 1.P: Ref to line points array
 # 2.P: Ref to marker array
@@ -209,8 +219,9 @@ sub map_mashup_google(\@\@$$$$$$);
 # 5.P: Accumulated Ascend
 # 6.P: Accumulated Descent
 # 7.P: Tempe Profile file name
-# 8.P: Webpage title
-sub map_mashup_osm(\@\@$$$$$$);
+# 8.P: Time Profile file name
+# 9.P: Webpage title
+sub map_mashup_osm(\@\@$$$$$$$);
 # Map mash-up  for Yahoo
 # 1.P: Ref to line points array
 # 2.P: Ref to marker array
@@ -253,6 +264,13 @@ if ( $opts{'tempe'} ) {
   $Tempe_Default = "Enable or Disable (Default)";
 }
 # This also
+our $Time_Default;
+if ( $opts{'time'} ) {
+  $Time_Default = "Enable (Default) or Disable";
+} else  {
+  $Time_Default = "Enable or Disable (Default)";
+}
+# This also
 our $Pictures_Available;
 if ( not $opts{'pics_module'} ) {
   $Pictures_Available = " (not available,\n" .
@@ -271,7 +289,7 @@ USAGE
 
      $Prog_Name [--help|-h] [--version|-V] [--route|-r route] [--merge]
              [--title|-t title] [--osm|-o] [--yahoo|-y]
-             [--[no]height] [--[no]tempe]
+             [--[no]height] [--[no]tempe]  [--[no]time]
              [--outfile|-w file] inputfile [--pictures|-p img1 img2 ...]
 
        --help, -h                This help screen
@@ -296,6 +314,8 @@ USAGE
 
        --tempe|--notempe         $Tempe_Default Temperature profile
                                  Data provided by Garmin Tempe sensor
+
+       --time|--notime           $Tempe_Default Time vs. distance profile
 
        --pictures img1 img2 ...  Place a shrinked version of these images
        -p img1 img2 img3 ...     on the map, Pictures must include GPS
@@ -677,6 +697,8 @@ sub map_mashup($) {
   my $hfilename_path; # Output file name for Height Profile (with path)
   my $tfilename;      # Output file name for Tempe Profile (no path)
   my $tfilename_path; # Output file name for Tempe Profile (with path)
+  my $ifilename;      # Output file name for Time Profile (no path)
+  my $ifilename_path; # Output file name for Time Profile (with path)
   my $hasc = 0;      # Accumulated Ascent Height
   my $hdesc = 0;     # Accumulated Descent Height
   my $hdiff;         # Height Difference (for calculation)
@@ -688,9 +710,11 @@ sub map_mashup($) {
       $mfilename = $path . $base . ".html";  # Mashup
       $hfilename = $base . "-height.png";    # Height Profile
       $tfilename = $base . "-tempe.png";     # Tempe Profile
+      $ifilename = $base . "-time.png";      # Time Profile
       # Height/Tempe Profile name with path (where to write the file to)
       $hfilename_path = $path . $hfilename;
       $tfilename_path = $path . $tfilename;
+      $ifilename_path = $path . $ifilename;
     } else {    # Do normal file name generation
       my ($base,$path,$type) = fileparse($opts{'infile_plain'}, qr{\.[^\.]+});
       my $fn_title = "";    # Add title name when supplied
@@ -701,9 +725,11 @@ sub map_mashup($) {
       $mfilename = $path . $base . $fn_title . ".html";  # Mashup
       $hfilename = $base . $fn_title . "-height.png";    # Height Profile
       $tfilename = $base . $fn_title . "-tempe.png";     # Tempe Profile
+      $ifilename = $base . $fn_title . "-time.png";      # Time Profile
       # Height/Tempe Profile name with path (where to write the file to)
       $hfilename_path = $path . $hfilename;
       $tfilename_path = $path . $tfilename;
+      $ifilename_path = $path . $ifilename;
     }
   }
 
@@ -827,13 +853,19 @@ sub map_mashup($) {
   }  # if ($opts{'tempe'} )
 
 
+  # *** When requested generate also a temperature profile
+  # Abuse above height variables here
+  if ($opts{'time'} ) {
+      die "IMPLEMENT ME"
+  }
+
   # *** Call appropriate Mash-Up Function
   if ( $opts{'google'} ) {
     map_mashup_google(@ppoints, @mpoints, $mfilename, $hfilename, $hasc, $hdesc,
-		      $tfilename, $title);
+		      $tfilename, $ifilename, $title);
   } elsif ( $opts{'osm'} ) {
     map_mashup_osm(@ppoints, @mpoints, $mfilename, $hfilename, $hasc, $hdesc,
-		   $tfilename, $title);
+		   $tfilename, $ifilename, $title);
   } elsif ( $opts{'yahoo'} ) {
     map_mashup_yahoo(@ppoints, @mpoints, $mfilename, $hfilename, $hasc, $hdesc,
 		     $title);
@@ -997,11 +1029,13 @@ sub map_mashup_yahoo(\@\@$$$$$) {
 # 5.P: Accumulated Ascend
 # 6.P: Accumulated Descent
 # 7.P: Tempe Profile file name
-# 8.P: Webpage title
-sub map_mashup_google(\@\@$$$$$$) {
+# 8.P: Time Profile file name
+# 9.P: Webpage title
+sub map_mashup_google(\@\@$$$$$$$) {
   # *** Variables
   # Get arguments
-  my ($lref, $mref, $outfile, $heightfile, $hasc, $hdesc, $tempefile, $title) = @_;
+  my ($lref, $mref, $outfile, $heightfile, $hasc, $hdesc,
+      $tempefile, $timefile, $title) = @_;
 
   # *** Preparation for Markers
   # Distance with 2 digits and in km
@@ -1028,8 +1062,10 @@ sub map_mashup_google(\@\@$$$$$$) {
 		   height_file    => $heightfile,
 		   height_ascend  => sprintf("%.0f m", $hasc),  # Formatting
 		   height_descend => sprintf("%.0f m", $hdesc), # Formatting
-		   tempe_enable  => $opts{'tempe'},
-		   tempe_file    => $tempefile,
+		   tempe_enable   => $opts{'tempe'},
+		   tempe_file     => $tempefile,
+		   time_enable    => $opts{'time'},
+		   time_file      => $timefile,
 		   pics_enable    => $opts{'pics'}?1:0,
 		   pics_data      => $opts{'pics'},
 		 };
@@ -1049,11 +1085,14 @@ sub map_mashup_google(\@\@$$$$$$) {
 # 3.P: Height Profile file name
 # 5.P: Accumulated Ascend
 # 6.P: Accumulated Descent
-# 7.P: Webpage title
-sub map_mashup_osm(\@\@$$$$$$) {
+# 7.P: Tempe Profile file name
+# 8.P: Time Profile file name
+# 9.P: Webpage title
+sub map_mashup_osm(\@\@$$$$$$$) {
   # *** Variables
   # Get arguments
-  my ($lref, $mref, $outfile, $heightfile, $hasc, $hdesc, $tempefile, $title) = @_;
+  my ($lref, $mref, $outfile, $heightfile, $hasc, $hdesc,
+      $tempefile, $timefile, $title) = @_;
 
   # *** Preparation for Markers
   # Distance with 2 digits and in km
@@ -1083,6 +1122,8 @@ sub map_mashup_osm(\@\@$$$$$$) {
 		   height_descend => sprintf("%.0f m", $hdesc), # Formatting
 		   tempe_enable  => $opts{'tempe'},
 		   tempe_file    => $tempefile,
+		   time_enable    => $opts{'time'},
+		   time_file      => $timefile,
 		   pics_enable    => $opts{'pics'}?1:0,
 		   pics_data      => $opts{'pics'},
 		 };
@@ -1149,6 +1190,7 @@ sub read_commandline() {
 			  'outfile|w=s',
 			  'height!',
 			  'tempe!',
+			  'time!',
                           'merge',
 			  'yahoo|y!',
 			  'osm|openstreetmaps|o!',
@@ -1195,6 +1237,14 @@ sub read_commandline() {
           "could not be loaded!\n";
     print "Either install Gnuplot module, or disable temperature sensor with the " .
            "--notempe option\n";
+    exit 1;
+  }
+  # Check when time is requested, whether gnuplot_module is available
+  if ($opts{'time'} and not $opts{'gnuplot_module'} ) {
+    print "ERROR: Time Profile is requested, but module Gnuplot " .
+          "could not be loaded!\n";
+    print "Either install Gnuplot module, or disable time profile with the " .
+           "--notime (I am too busy) option\n";
     exit 1;
   }
 
