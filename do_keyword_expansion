@@ -1,0 +1,34 @@
+#!/bin/bash
+#
+# Filter script to do simple SVN-like keyword expansion for
+# release.
+# Can be used with git filters - see file .gitattributes
+# Text to change is taken from stdin, the file to consider as master
+# file is set below.
+#
+# Copyright (C) 2010,2013 Robert Lange <sd2k9@sethdepot.org>
+# Licensed under the GNU General Public License, version 3
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see {http://www.gnu.org/licenses/}.
+#
+#
+# Supported Keywords are:
+# Number of commits: $LastChangedRevision$
+# Last commit date: $LastChangedDate$
+
+
+# *** Settings
+# Files to consider as master - take command line argument
+FILE="$1"
+
+# Get commit count for the master file
+REVCOUNT=$(git log --pretty=oneline "$FILE"|wc -l)
+# Get date for the master file
+DATE=$(git log --date=short --pretty=format:"%ad" -1 "$FILE")
+
+
+# *** Perform changes
+cat | \
+   sed -e "s/\\\$LastChangedRevision.*\\\$/\\\$LastChangedRevision: ${REVCOUNT}\\\$/g" | \
+   sed -e "s/\\\$LastChangedDate.*\\\$/\\\$LastChangedDate: ${DATE}\\\$/g"
+
