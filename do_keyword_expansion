@@ -22,9 +22,9 @@
 FILE="$1"
 
 # Get commit count for the master file
-REVCOUNT=$(git log --pretty=oneline "$FILE"|wc -l)
+REVCOUNT=$(git log --pretty=oneline -- "$FILE"|wc -l)
 # Get date for the master file
-DATE=$(git log --date=short --pretty=format:"%ad" -1 "$FILE")
+DATE=$(git log --date=short --pretty=format:"%ad" -1 -- "$FILE")
 
 
 # *** Perform changes
