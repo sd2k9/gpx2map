@@ -199,7 +199,11 @@ sub map_mashup($);
 # 5.P: x-axis label
 # 6.P: y-axis data, extracted from point array
 # 7.P: y-axis label
-sub gnuplot_profile_image(\@$$$$$$);
+# 8.P: If any axis is a time axis, define it here - otherwise undef
+# 9.P: For the time axes give the time format here - otherwise undef
+# 10.P: For the y axes give the label format here -  undef lets gnuplot choose
+# 11.P: x image size scaling, default is 1.0
+sub gnuplot_profile_image(\@$$$$$$$$$$);
 # Map mash-up  for Google
 # 1.P: Ref to line points array
 # 2.P: Ref to marker array
@@ -810,8 +814,11 @@ sub map_mashup($) {
 
     # Now let's create the height profile image
     gnuplot_profile_image(@hpoints, $hfilename_path, "Height Profile",
-			  'dist', "Distance / km",
-			  'ele', "Height / m");
+			  'dist', "Distance / km",  # x axis
+			  'ele', "Height / m",      # y axis
+	                   undef, undef,            # no time
+			   "%4.0f",                 # y axis label: 4 digit height, space padded
+			  0.825);                   # x scaling, manually tuned for equal graph size
   }  # if ($opts{'height'} )
 
 
@@ -848,15 +855,27 @@ sub map_mashup($) {
     # Now let's create the height profile image
     gnuplot_profile_image(@tpoints, $tfilename_path,
 			  "Temperature Profile",
-			  'dist', "Distance / km",
-			  'tempe', "Temp / °C");
+			  'dist', "Distance / km",   # x axis
+			  'tempe', "Temp / °C",      # y axis
+	                   undef, undef,             # no time
+			   "% 2.0f",                 # y axis label: 2 digit temperature
+ 	 	 	   0.815);                     # x scaling, manually tuned for equal graph size
   }  # if ($opts{'tempe'} )
 
 
-  # *** When requested generate also a temperature profile
-  # Abuse above height variables here
+  # *** When requested generate also a time vs distance plot
+  # Abuse above-above height variables here
   if ($opts{'time'} ) {
-      die "IMPLEMENT ME"
+    # We are lazy - the gnuplot module should take care about selecting the
+    # correct data points! So give it all
+    gnuplot_profile_image(@points, $ifilename_path,
+			  "Walking Daytime Profile",
+			  'dist', "Distance / km",    # x axis
+			  'time', "Time",             # y axis
+                           # GPX time format of the y axis
+			   # Template: 2013-09-07T15:14:45Z
+	                   "y", $opts{'time_format'}, "%H:%M",
+	                   0.835);                      # x scaling, manually tuned for equal graph size
   }
 
   # *** Call appropriate Mash-Up Function
@@ -884,13 +903,19 @@ sub map_mashup($) {
 # 5.P: x-axis label
 # 6.P: y-axis data, extracted from point array
 # 7.P: y-axis label
-sub gnuplot_profile_image(\@$$$$$$) {
+# 8.P: If any axis is a time axis, define it here - otherwise undef
+# 9.P: For the time axes give the time format here - otherwise undef
+# 10.P: For the y axes give the label format here - undef lets gnuplot choose
+# 11.P: x image size scaling, default is 1.0
+sub gnuplot_profile_image(\@$$$$$$$$$$) {
 
   # *** Variables
   # Arguments
   my ($pref, $filename, $title,
       $xdata, $xlabel,
-      $ydata, $ylabel) = @_;
+      $ydata, $ylabel,
+      $timeaxe, $timeformat,
+      $ylabelformat, $xscale) = @_;
   my (@x, @y);           # Dataset
   my $chart;             # Chart object
   my $dataset;           # Dataset
@@ -917,7 +942,7 @@ sub gnuplot_profile_image(\@$$$$$$) {
 	     unless $#y > 0;
 	  $y[$#y] = $y[$#y-1]
   }
-  # One special case can occur when there is no tempe data at all:
+  # One special case can occur when there is no (tempe) data at all:
   # Two undef values
   # Solution: Check first and last value and replace with -1 and +1
   if ( (! defined($y[0])) &&  (! defined($y[$#y])) ) {
@@ -938,13 +963,15 @@ sub gnuplot_profile_image(\@$$$$$$) {
           title  => $title,
 	  xlabel => $xlabel,
 	  ylabel => $ylabel,
+          ytics  => { minor => 0, labelfmt => $ylabelformat},      # no minor tics for y
+          timeaxis => $timeaxe,         # This is the time axis,if any
           # Background fill only for debug
           # bg     => {
           #   color   => "#c9c9ff",
           #   density => 0.2,
           # },
-          # 20% shorter in length, 50% shorter in height",
-	  imagesize => "0.8, 0.5",
+          # custom length, 50% shorter in height",
+	  imagesize => "$xscale, 0.5",
           grid => "on",
  );
 
@@ -952,6 +979,7 @@ sub gnuplot_profile_image(\@$$$$$$) {
   $dataset = Chart::Gnuplot::DataSet->new(
                xdata => \@x,
                ydata => \@y,
+               timefmt => $timeformat,       # Timeformat, if any
                # Normal line style
                style => "lines",
                width => 2,
@@ -962,7 +990,7 @@ sub gnuplot_profile_image(\@$$$$$$) {
     );
 
   # Plot the data set on the chart
-  print "Writing " . $title . " height chart to $filename ...\n";
+  print "Writing " . $title . " chart to $filename ...\n";
   $chart->plot2d($dataset);
 
 }

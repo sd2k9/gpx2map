@@ -42,7 +42,7 @@
       [%- END %]
       title:"[% point.dist %]"
       });
-    [% END %]
+    [%- END %]
 
     [%- IF pics_enable %]
     [%- # Only print when picture embedding is enabled %]
@@ -154,28 +154,32 @@
       [%- END %]
     </ul>
 
+  [%- IF height_enable || tempe_enable || time_enable %]
+  <table>
   [%- IF height_enable %]
   [%- # Only print when height display is enabled %]
   <!-- Height Display -->
-  <div  style="text-align:center">
+  <tr><td style="text-align:right">
      <img alt="Height Profile" src="[% height_file %]" />
-  </div>
+  </td></tr>
   [%- END %]
 
   [%- IF tempe_enable %]
   [%- # Only print when temperature display is enabled %]
   <!-- Temperature Display -->
-  <div  style="text-align:center">
+  <tr><td style="text-align:right">
      <img alt="Temperature Profile" src="[% tempe_file %]" />
-  </div>
+  </td></tr>
   [%- END %]
 
   [%- IF time_enable %]
   [%- # Only print when time display is enabled %]
   <!-- Time Display -->
-  <div  style="text-align:center">
+  <tr><td style="text-align:right">
      <img alt="Time vs. Distance Profile" src="[% time_file %]" />
-  </div>
+  </td></tr>
+  [%- END %]
+  </table>
   [%- END %]
 
 </body>
