@@ -41,7 +41,7 @@ rev. 409</h1>
 <p>gpx2map reads a gps track in GPX format (as produced by
 e.g. <a href="http://www.gpsbabel.org/">gpsbabel</a>) and writes out an
 <a href="http://maps.google.com">Google Map</a> or
-or <a href="http://openstreetmaps.org">OpenStreetMaps</a>
+<a href="http://openstreetmaps.org">OpenStreetMaps</a>
 mash-up containing the route and a height profile.
 gpx2map can also show GPS-tagged photos along the map.</p>
 
@@ -61,7 +61,7 @@ in GPX format and let gpx2map write out an map overlay for you.</p>
 </p>
 
 <pre>
-gpx2map - Reads a gps track in GPX format and writes out an Google Map or or OpenStreetMaps
+gpx2map - Reads a gps track in GPX format and writes out an Google Map or OpenStreetMaps
           mash-up containing the route and additonal information
 Copyright (C) 2007-2010,2013 Robert Lange
 
@@ -112,8 +112,8 @@ drop me a note.</p>
 <h2>Installation</h2>
 
 <p>Just copy (or link) the file <code>gpx2map</code> into your path or any place you like.<br>
-Put the mash-up template files <code>gpx2map.google.template</code>,
- <code>gpx2map.osm.template</code> and <code>gpx2map.yahoo.template</code>
+Put the mash-up template files <code>gpx2map.google.template</code> and
+ <code>gpx2map.osm.template</code> 
 where you put gpx2map itself (not to the link, in case you linked it).
 </p>
 
@@ -158,7 +158,8 @@ the EXIF header.</p>
 
 <p><samp>
      gpx2map [--help|-h] [--version|-V] [--route|-r route] [--merge]<br>
-             [--title|-t title] [--osm|-o] [--yahoo|-y] [--[no]height]<br>
+             [--title|-t title] [--osm|-o]<br>
+             [--[no]height] [--[no]tempe]  [--[no]time]<br>
              [--outfile|-w file] inputfile [--pictures|-p img1 img2 ...]
 </samp></p>
 
@@ -168,7 +169,6 @@ the EXIF header.</p>
 <tr><td>--version, -V</td>             <td>Version</td></tr>
 
 <tr><td>--osm, -o</td>          <td>Create OpenStreetMaps Mash-Up</td></tr>
-<tr><td>--yahoo, -y</td>        <td>Create Yahoo Mash-Up (broken)</td></tr>
 <tr><td></td>                   <td>Default is Google Mash-Up</td></tr>
 
 <tr><td>--title, -t &lt;title&gt;</td>  <td>Title of web page, when not specified
@@ -184,6 +184,11 @@ the EXIF header.</p>
 
 <tr><td>--height|--noheight</td>    <td>Enable (Default) or Disable height profile<td></tr>
 
+<tr><td>--tempe|--notempe</td>    <td>Enable (Default) or Disable Temperature profile
+                                      Data provided by Garmin Tempe sensor<td></tr>
+
+<tr><td>--time|--notime</td>    <td>Enable (Default) or Disable Time vs. distance profile<td></tr>
+
 
 <tr><td>--pictures|-p img1 img2 ...</td>    <td>Place a shrinked version of these images
                                                   on the map<td></tr>
@@ -194,8 +199,8 @@ the EXIF header.</p>
 </table>
 
 
+
 <p>
-Output format is Google maps, unless <code>--osm</code> or <code>--yahoo</code> is given.<br>
 When neither <code>--route</code> nor <code>--merge</code> are specified,
 create individual web pages for each route.</p>
 
@@ -218,12 +223,6 @@ Just use the following command line:</p>
 <p>You can change certain settings of gpx2map operation in the header of
 the executable. Just search for "global settings".</p>
 
-<p><a name="apikeys">In case you want to try out (or fix) the currently broken
-Yahoo interface you certainly want to change the Yahoo Maps API key.
-It's required when you want to upload the html pages to a
-server. Otherwise the API refuses to work.</a><br>
-Google recently (End of 2009) dropped the API key requirement in their Version 3
-API.</p>
 
 <p>Most common settings - the others are documented in the script itself:</p>
 
@@ -283,17 +282,13 @@ API.</p>
 GPX file, and you cannot use absolute paths to pictures.</p>
 
 <p>The browser compatibility could be improved.<br>
-gpx2map generated pages are tested sucessfully with Firefox 2 and 3,
+gpx2map generated pages are tested sucessfully with Firefox and Chromium,
 with most other (older) browsers you can expect drawbacks.
 </p>
 
 <p>OpenStreetMaps Output for Picture placement is somewhat ugly and jumpy.
 I am still struggeling with the API and the lack of usable examples.</p>
 
-
-<p>On third, the Yahoo Maps mash-up is broken and most probably
-won't be fixed, because I myself don't use it at all. You're welcome to
-provide me an updated template file to use with gpx2map.</p>
 
 <p>To run gpx2map on windows probably have to make the following adaptions:<br>
 In the sub height_profile_image add the line:
@@ -325,14 +320,17 @@ Please look there for new versions.</p>
 <table style="width:95%;margin-left:auto;margin-right:auto">
   <colgroup width="1*" span="3"></colgroup>
   <tr valign=top>
-    <td style="text-align:left">created by <a href="http://sethdepot.org/site/RoLa">rola</a></td>
+    <td style="text-align:left">Created by <a href="http://sethdepot.org/site/RoLa">rola</a></td>
     <td style="text-align:center;width:100px">
 	 <a href="http://validator.w3.org/check/referer">
 	 <img style="border-width:0px" src="http://www.w3.org/Icons/valid-html40" alt="Valid HTML 4.0!" height="31" width="88">
     </a></td>
-    <td style="text-align:right">last modification: <!--INCLUDEDATE-->2012-03-17<!--ENDINC--><br>
+    <td style="text-align:right">
+         <!-- last modification: <!--INCLUDEDATE-- >2012-03-17<!--ENDINC-- ><br>
          <div style="font-size:smaller">$LastChangedRevision: 423 $<br>$LastChangedDate: 2012-04-01 19:00:54 +0200 (Sun, 01 Apr 2012) $</div>
-	    </td>
+         //-->
+	 GitHub-Link
+    </td>
   </tr>
 </table></div>
 

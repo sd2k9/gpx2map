@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # File name: ''gpx2map''
 # Function: Converts track data in GPX format (e.g. from a Garmin naviagation
-#           system with gpsbabel) to a Google/Yahoo/OpenStreetMaps Maps MashUp
+#           system with gpsbabel) to a Google/OpenStreetMaps Maps MashUp
 #           of the route
 #  status: New feature testing
 #
@@ -59,8 +59,6 @@ my %opts = (        # Processed options for use in the program
     google => 1,
     # when true create OpenStreetMaps Mash-Up
     osm => 0,
-    # when true create Yahoo Mash-Up, false for Google
-    yahoo => 0,
 
     # when true (1) create a height profile, not for 0 (by command line)
     # Change default here, can be overridden by command line
@@ -91,12 +89,6 @@ my %opts = (        # Processed options for use in the program
     # Map template file, expect in same directory as script
     map_template_google => 'gpx2map.google.template',
     map_template_osm => 'gpx2map.osm.template',
-    map_template_yahoo  => 'gpx2map.yahoo.template',
-
-    # The API keys for Google and Yahoo, please replace with your own key
-    map_key_yahoo  => 'YahooDemo',               # Demo key (should work locally)
-    # Since API v3 NO Key anymore needed for Google
-
 
     # Distance between Polyline points in kilometer
     # map_line_dist => '0.025',        #   25 meter
@@ -226,15 +218,6 @@ sub map_mashup_google(\@\@$$$$$$$);
 # 8.P: Time Profile file name
 # 9.P: Webpage title
 sub map_mashup_osm(\@\@$$$$$$$);
-# Map mash-up  for Yahoo
-# 1.P: Ref to line points array
-# 2.P: Ref to marker array
-# 3.P: Output file name
-# 4.P: Height profile file name
-# 5.P: Accumulated Ascend
-# 6.P: Accumulated Descent
-# 7.P: Webpage title
-sub map_mashup_yahoo(\@\@$$$$$);
 # Invoke gpsbabel
 # 1.P: output file
 sub gpsbabel($);
@@ -292,7 +275,7 @@ Mash-up containing the route.
 USAGE
 
      $Prog_Name [--help|-h] [--version|-V] [--route|-r route] [--merge]
-             [--title|-t title] [--osm|-o] [--yahoo|-y]
+             [--title|-t title] [--osm|-o]
              [--[no]height] [--[no]tempe]  [--[no]time]
              [--outfile|-w file] inputfile [--pictures|-p img1 img2 ...]
 
@@ -300,7 +283,6 @@ USAGE
        --version, -V             Version
 
        --osm, -o                 Create OpenStreetMaps Mash-Up
-       --yahoo, -y               Create Yahoo Mash-Up (broken)
                                  Default is Google Mash-Up
 
        --title, -t <title>       Title of web page, when not specified
@@ -366,7 +348,6 @@ sub main() {
   print "Generating output for ";
   print "Google Maps\n" if $opts{'google'};
   print "Open Street Maps (OSM)\n" if $opts{'osm'};
-  print "Yahoo Maps (currently broken)\n" if $opts{'yahoo'};
 
 
   # *** In Pictures mode, prepare the images now
@@ -885,11 +866,7 @@ sub map_mashup($) {
   } elsif ( $opts{'osm'} ) {
     map_mashup_osm(@ppoints, @mpoints, $mfilename, $hfilename, $hasc, $hdesc,
 		   $tfilename, $ifilename, $title);
-  } elsif ( $opts{'yahoo'} ) {
-    map_mashup_yahoo(@ppoints, @mpoints, $mfilename, $hfilename, $hasc, $hdesc,
-		     $title);
-  }
-
+  } 
 }
 
 # ##############################################################################
@@ -995,57 +972,6 @@ sub gnuplot_profile_image(\@$$$$$$$$$$) {
 
 }
 
-
-# ##############################################################################
-
-# *** Map mash-up for Yahoo ***
-# 1.P: Ref to line points array
-# 2.P: Ref to marker array
-# 3.P: Output file name
-# 4.P: Height profile file name
-# 5.P: Accumulated Ascend
-# 6.P: Accumulated Descent
-# 7.P: Webpage title
-sub map_mashup_yahoo(\@\@$$$$$) {
-
-  # *** Variables
-  my ($lref, $mref, $outfile, $heightfile, $hasc, $hdesc, $title) = @_;      # Get arguments
-
-  # *** For yahoo just need to format distance to 1 character,
-  #     and set dist to "S" and "E" for first/last point
-  foreach (@$mref) {
-    $_->{dist} = sprintf ( "%.0f", $_->{dist} )
-      if $_->{dist};
-  }
-  $mref->[0]->{dist} = "S";
-  $mref->[$#$mref]->{dist} = "E";
-
-
-  # *** Mash-up
-  # Variables for template toolkit
-  # Out of whatever's reason you must UTF8-decode the file name to get it right ...
-  my $template = Template->new(
-			       OUTPUT =>  Encode::decode("UTF-8",$outfile),
-			       ABSOLUTE => 1         # Allow absolute file names
-			      );
-  my $vars     = { points   => $mref,
-		   line     => $lref,
-		   distance => $dist,
-		   title    => $title,
-		   apikey   => $opts{'map_key_yahoo'},
-		 };
-
-  # Print a warning about current broken and no height
-  print "WARNING: Yahoo Mashup is currently broken and Height Display or Image Mapping not implemented!\n";
-  print "         Your patches are welcome, I most likely won't touch it anymore\n";
-
-  # Create file
-  print "Writing yahoo file $outfile ...\n";
-  $template->process("$FindBin::RealBin/$opts{'map_template_yahoo'}", $vars) or
-    die $template->error() . "\n";
-
-
-}
 
 # ##############################################################################
 
@@ -1220,7 +1146,6 @@ sub read_commandline() {
 			  'tempe!',
 			  'time!',
                           'merge',
-			  'yahoo|y!',
 			  'osm|openstreetmaps|o!',
 			  'pictures|p=s{,}' => \@pics,
 			  'help|h|?' => \$help,
@@ -1291,14 +1216,14 @@ sub read_commandline() {
     }
   }
 
+  # When OSM is selected, then deselect Google Mashup
+  $opts{google} = 0 if $opts{osm};
   # Check when more than one (or no) mode is selected
   die "No Mash-Up type enabled - how can this happen?!"
-    unless $opts{google} or $opts{osm} or $opts{yahoo};
-  die "Both OpenStreetMaps and Yahoo Output requested - please decide for one"
-    if $opts{osm} and $opts{yahoo};
+      unless $opts{google} or $opts{osm};
+  die "Both OpenStreetMaps and Google Output requested - how can this happen?!"
+      if $opts{google} and $opts{osm};
 
-  # When OSM or Yahoo is selected, then deselect Google Mashup
-  $opts{google} = 0 if $opts{osm} or $opts{yahoo};
 
 
   # Check that an output file name can be only selected for --route or --merge
