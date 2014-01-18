@@ -6,7 +6,7 @@
 #  status: New feature testing
 #
 #      created: 2007-07-27
-#      Version: $LastChangedRevision: 12$
+#      Version: $LastChangedRevision: 13$
 #  last change: $LastChangedDate: 2013-12-01$
 #  Based on code from Mike Schilli, 2006 (m@perlmeister.com)
 #  http://www.linux-magazin.de/heft_abo/ausgaben/2006/07/hinterm_horizont
@@ -631,10 +631,11 @@ sub read_trkpt_xml_handler($$) {
     # Coordinate
     $lat = $trkpt->att('lat');
     $lon = $trkpt->att('lon');
-    # Try to fetch ele children
-    $ele = 0.0 + $trkpt->first_child_text('ele');
-    $ele = 0.0 unless      # No children, thus no elevation available
-	$ele;
+    # Try to fetch ele children, when available
+    $ele = 0.0;
+    $ele = 0.0 + $trkpt->first_child_text('ele')
+	if $trkpt->first_child_text('ele');
+
     # Try to fetch time
     $time = $trkpt->first_child_text('time');
     # undef: No children, thus no time available
@@ -896,12 +897,16 @@ sub gnuplot_profile_image(\@$$$$$$$$$$) {
   my (@x, @y);           # Dataset
   my $chart;             # Chart object
   my $dataset;           # Dataset
+  my $tmp;               # Temp variable
 
   # Transform Data to x and y
  # print $xlabel . "\n";
   for my $trkpt (@$pref) {
-    push @x, $trkpt->{$xdata};
-    push @y, $trkpt->{$ydata};
+    push @x, $trkpt->{$xdata};   # That is always defined
+    # In case of invalid/nonexisting data set it to 0 (can happen with missing time data in GPX file)
+    $tmp = $trkpt->{$ydata};
+    $tmp = 0 if ! $tmp;
+    push @y, $tmp;
     # print $trkpt->{lat}  . " " . $trkpt->{lon}  . " " .$trkpt->{$xdata} . " " . $trkpt->{$ydata} . "\n";
   }
 
@@ -1247,7 +1252,7 @@ sub read_commandline() {
 sub versionstring ($) {
 
     my $verbose = shift;         # True when we should return long version
-    my $rev = '$LastChangedRevision: 12$';
+    my $rev = '$LastChangedRevision: 13$';
     my $date = '$LastChangedDate: 2013-12-01$';
 
     # Filter revision
