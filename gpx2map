@@ -6,8 +6,8 @@
 #  status: New feature testing
 #
 #      created: 2007-07-27
-#      Version: $LastChangedRevision: 13$
-#  last change: $LastChangedDate: 2013-12-01$
+#      Version: $LastChangedRevision: 14$
+#  last change: $LastChangedDate: 2014-01-18$
 #  Based on code from Mike Schilli, 2006 (m@perlmeister.com)
 #  http://www.linux-magazin.de/heft_abo/ausgaben/2006/07/hinterm_horizont
 #
@@ -427,22 +427,22 @@ sub main() {
   if ( $opts{'infile'} =~ /^(.+).gz$/) {  # gzip compressed file
     $opts{'infile_plain'} = $1;      # remove compression suffix
     print "Reading gzip'ed file $opts{'infile'}\n";
-    $ifile->open("gunzip -c $opts{'infile'} |")
+    $ifile->open("gunzip -c \"$opts{'infile'}\" |")
       or die "Failed opening $opts{'infile'} with gunzip";
   } elsif ( $opts{'infile'} =~ /^(.+).bz2$/) {  # bzip2 compressed file
     $opts{'infile_plain'} = $1;      # remove compression suffix
     print "Reading bzip2'ed file $opts{'infile'}\n";
-    $ifile->open("bunzip2 -c $opts{'infile'} |")
+    $ifile->open("bunzip2 -c \"$opts{'infile'}\" |")
       or die "Failed opening $opts{'infile'} with bunzip2";
   } elsif ( $opts{'infile'} =~ /^(.+).lzma$/) {  # lzma compressed file
     $opts{'infile_plain'} = $1;      # remove compression suffix
     print "Reading lzma'ed file $opts{'infile'}\n";
-    $ifile->open("lzma -d -c $opts{'infile'} |")
+    $ifile->open("lzma -d -c \"$opts{'infile'}\" |")
       or die "Failed opening $opts{'infile'} with lzma";
   } elsif ( $opts{'infile'} =~ /^(.+).xz$/) {  # xz compressed file
     $opts{'infile_plain'} = $1;      # remove compression suffix
     print "Reading xz'ed file $opts{'infile'}\n";
-    $ifile->open("xz -d -c $opts{'infile'} |")
+    $ifile->open("xz -d -c \"$opts{'infile'}\" |")
       or die "Failed opening $opts{'infile'} with xz";
   } else {   # Uncompressed file
     $opts{'infile_plain'} = $opts{'infile'};    # No name change
@@ -1252,8 +1252,8 @@ sub read_commandline() {
 sub versionstring ($) {
 
     my $verbose = shift;         # True when we should return long version
-    my $rev = '$LastChangedRevision: 13$';
-    my $date = '$LastChangedDate: 2013-12-01$';
+    my $rev = '$LastChangedRevision: 14$';
+    my $date = '$LastChangedDate: 2014-01-18$';
 
     # Filter revision
     if ($rev =~ /LastChangedRevision: (\d+)/) {
