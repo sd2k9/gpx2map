@@ -6,8 +6,8 @@
 #  status: New feature testing
 #
 #      created: 2007-07-27
-#      Version: $LastChangedRevision: 14$
-#  last change: $LastChangedDate: 2014-01-18$
+#      Version: $LastChangedRevision: 15$
+#  last change: $LastChangedDate: 2014-03-15$
 #  Based on code from Mike Schilli, 2006 (m@perlmeister.com)
 #  http://www.linux-magazin.de/heft_abo/ausgaben/2006/07/hinterm_horizont
 #
@@ -296,12 +296,16 @@ USAGE
        --outfile, -w <file>      For --route or --merge processing the
                                  output path+base filename can be given
 
-       --height|--noheight       $Height_Default height profile
+       --height|--noheight       $Height_Default height profile and
+                                 accumulated ascend/descend statistics
 
        --tempe|--notempe         $Tempe_Default Temperature profile
                                  Data provided by Garmin Tempe sensor
 
        --time|--notime           $Tempe_Default Time vs. distance profile
+
+       --nographs                Disable all profile graphs, other profile
+                                 options are ignored
 
        --pictures img1 img2 ...  Place a shrinked version of these images
        -p img1 img2 img3 ...     on the map, Pictures must include GPS
@@ -853,7 +857,7 @@ sub map_mashup($) {
     gnuplot_profile_image(@points, $ifilename_path,
 			  "Walking Daytime Profile",
 			  'dist', "Distance / km",    # x axis
-			  'time', "Time",             # y axis
+			  'time', "Time / UTC",       # y axis
                            # GPX time format of the y axis
 			   # Template: 2013-09-07T15:14:45Z
 	                   "y", $opts{'time_format'}, "%H:%M",
@@ -1140,6 +1144,7 @@ sub read_commandline() {
   my $ver;        # set to one if version is requested
   my $babel;      # set to one when gpsbabel is requested
                   # Input file is then gpsbabel output file
+  my $nographs;   # Disable all profile graphs alltogether
   my @pics;       # Picture array, will be transformed to hash
 
   Getopt::Long::Configure ();  # No bundling anymore, interferes with "=s{,}"
@@ -1147,6 +1152,7 @@ sub read_commandline() {
 			  'route|r=s',
 			  'title|t=s',
 			  'outfile|w=s',
+			  'nographs' => \$nographs,
 			  'height!',
 			  'tempe!',
 			  'time!',
@@ -1179,6 +1185,12 @@ sub read_commandline() {
     print versionstring(1)  . "\n";
     print $Help_Documentation;
     exit 1;
+  }
+
+
+  # Disable all graphs
+  if ($nographs) {
+      $opts{'height'} = $opts{'tempe'} = $opts{'time'} = 0;
   }
 
   # Check when height is requested, whether gnuplot_module is available
@@ -1252,8 +1264,8 @@ sub read_commandline() {
 sub versionstring ($) {
 
     my $verbose = shift;         # True when we should return long version
-    my $rev = '$LastChangedRevision: 14$';
-    my $date = '$LastChangedDate: 2014-01-18$';
+    my $rev = '$LastChangedRevision: 15$';
+    my $date = '$LastChangedDate: 2014-03-15$';
 
     # Filter revision
     if ($rev =~ /LastChangedRevision: (\d+)/) {
