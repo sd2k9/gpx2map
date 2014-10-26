@@ -154,7 +154,7 @@
       [%- END %]
       [%- IF speed_enable %]
       [%- # Only print when speed display is enabled %]
-      <li>Max speed: [% maxspeed %] km/h</li>
+      <li>Max speed: [% speed_max %] km/h</li>
       [%- END %]
     </ul>
 

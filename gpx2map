@@ -63,9 +63,6 @@ my %opts = (        # Processed options for use in the program
     # when true (1) create a height profile, not for 0 (by command line)
     # Change default here, can be overridden by command line
     height => 1,
-    # when true (1) create a speed profile, not for 0 (by command line)
-    # Change default here, can be overridden by command line
-    speed => 1,
     # when true (1) create a temperature profile, not for 0 (by command line)
     # Temperature provided by Garmin tempe sensor
     # Change default here, can be overridden by command line
@@ -73,6 +70,9 @@ my %opts = (        # Processed options for use in the program
     # when true (1) create a time profile, not for 0 (by command line)
     # Change default here, can be overridden by command line
     time => 1,
+    # when true (1) create a speed profile, not for 0 (by command line)
+    # Change default here, can be overridden by command line
+    speed => 1,
     # Is the Gnuplot module available, which is needed by height, time and tempe?
     # This is set by the program itself, no modification here
     # gnuplot_module
@@ -100,8 +100,6 @@ my %opts = (        # Processed options for use in the program
     map_points_dist => '2.0',        # 2000 meter
     # Height Difference between height diagram points in meters
     height_diff => '25',        #   25 meter
-    # Speed Difference between speed diagram points
-    speed_diff => '0.5',	# 0.5 km/h
     # Temperature Difference between tempe diagram points in grad celcius
     tempe_diff => '0.25',        #   1/4 °C
     # Time difference between time diagram points
@@ -208,9 +206,9 @@ sub gnuplot_profile_image(\@$$$$$$$$$$);
 # 4.P: Height profile file name
 # 5.P: Accumulated Ascend
 # 6.P: Accumulated Descent
-# 7.P: Speed Profile file name
-# 8.P: Tempe Profile file name
-# 9.P: Time Profile file name
+# 7.P: Tempe Profile file name
+# 8.P: Time Profile file name
+# 9.P: Speed Profile file name
 # 10.P: Webpage title
 sub map_mashup_google(\@\@$$$$$$$$);
 # Map mash-up  for OpenStreetMaps
@@ -220,9 +218,9 @@ sub map_mashup_google(\@\@$$$$$$$$);
 # 4.P: Height profile file name
 # 5.P: Accumulated Ascend
 # 6.P: Accumulated Descent
-# 7.P: Speed Profile file name
-# 8.P: Tempe Profile file name
-# 9.P: Time Profile file name
+# 7.P: Tempe Profile file name
+# 8.P: Time Profile file name
+# 9.P: Speed Profile file name
 # 10.P: Webpage title
 sub map_mashup_osm(\@\@$$$$$$$$);
 # Invoke gpsbabel
@@ -240,7 +238,8 @@ our $Prog_Name = "gpx2map";
 my @points = ();
 # Calculated overall distance
 my $dist;
-my $smax;
+# Calculated maximum speed
+my $speed_max = 0.0;
 
 
 # ***************************** Documentation ***************************
@@ -250,13 +249,6 @@ if ( $opts{'height'} ) {
   $Height_Default = "Enable (Default) or Disable";
 } else  {
   $Height_Default = "Enable or Disable (Default)";
-}
-# This also
-our $Speed_Default;
-if ( $opts{'speed'} ) {
-  $Speed_Default = "Enable (Default) or Disable";
-} else {
-  $Speed_Default = "Enable or Disable (Default)";
 }
 # This also
 our $Tempe_Default;
@@ -271,6 +263,13 @@ if ( $opts{'time'} ) {
   $Time_Default = "Enable (Default) or Disable";
 } else  {
   $Time_Default = "Enable or Disable (Default)";
+}
+# This also
+our $Speed_Default;
+if ( $opts{'speed'} ) {
+  $Speed_Default = "Enable (Default) or Disable";
+} else {
+  $Speed_Default = "Enable or Disable (Default)";
 }
 # This also
 our $Pictures_Available;
@@ -311,15 +310,15 @@ USAGE
        --outfile, -w <file>      For --route or --merge processing the
                                  output path+base filename can be given
 
-       --height|--noheight       $Height_Default height profile and
+       --height|--noheight       $Height_Default Height profile and
                                  accumulated ascend/descend statistics
-
-       --speed|--nospeed	 $Speed_Default speed profile
 
        --tempe|--notempe         $Tempe_Default Temperature profile
                                  Data provided by Garmin Tempe sensor
 
        --time|--notime           $Tempe_Default Time vs. distance profile
+
+       --speed|--nospeed	 $Speed_Default Speed profile
 
        --nographs                Disable all profile graphs, other profile
                                  options are ignored
@@ -637,9 +636,9 @@ sub read_trkpt_xml_handler($$) {
     my $lat;
     my $lon;
     my $ele;
-    my $speed;
     my $time;
     my $tempe;
+    my $speed;
     my $tmp;         # Intermediate values
 
     # Fetch Data
@@ -658,12 +657,6 @@ sub read_trkpt_xml_handler($$) {
     $ele = 0.0 + $trkpt->first_child_text('ele')
 	if $trkpt->first_child_text('ele');
 
-    # Try to fetch speed children, when available
-    $speed = 0.0;
-    $speed = 0.0 + $trkpt->first_child_text('speed')
-	if $trkpt->first_child_text('speed');
-    $speed *= 3.6; # m/s *= 3.6 km/h
-
     # Try to fetch time
     $time = $trkpt->first_child_text('time');
     # undef: No children, thus no time available
@@ -678,9 +671,19 @@ sub read_trkpt_xml_handler($$) {
 	}
     }
 
+    # Try to fetch speed children, when available, update max speed
+    undef $speed;
+    if ($trkpt->first_child_text('speed') ) {
+	$speed = 0.0 + $trkpt->first_child_text('speed');
+	$speed *= 3.6; # m/s *= 3.6 km/h
+	if ($speed > $speed_max) {
+	    $speed_max = sprintf("%.2f", $speed);
+	}
+    }
+
     push @points, {
         lat => $lat, lon => $lon, ele => $ele,
-	speed => $speed, time => $time, tempe => $tempe
+	time => $time, tempe => $tempe, speed => $speed
 		  };
 
     # Deep Debug
@@ -703,23 +706,21 @@ sub map_mashup($) {
   my @mpoints = ();  # Map points (reference to @points)
   my @ppoints = ();  # Polyline points  (reference to @points)
   my @hpoints = ();  # Height Profile points (reference to @points)
-  my @spoints = ();  # Speed Profile points (reference to @points)
   my @tpoints = ();  # Temperature Profile points (reference to @points)
   my $last_pt;       # Last point
   my $k = 0;         # For distance/height calculation
   my $mfilename;     # Output file name for Mashup
   my $hfilename;      # Output file name for Height Profile (no path)
   my $hfilename_path; # Output file name for Height Profile (with path)
-  my $sfilename;      # Output file name for Speed Profile (no path)
-  my $sfilename_path; # Output file name for Speed Profile (with path)
   my $tfilename;      # Output file name for Tempe Profile (no path)
   my $tfilename_path; # Output file name for Tempe Profile (with path)
   my $ifilename;      # Output file name for Time Profile (no path)
   my $ifilename_path; # Output file name for Time Profile (with path)
+  my $sfilename;      # Output file name for Speed Profile (no path)
+  my $sfilename_path; # Output file name for Speed Profile (with path)
   my $hasc = 0;      # Accumulated Ascent Height
   my $hdesc = 0;     # Accumulated Descent Height
   my $hdiff;         # Height Difference (for calculation)
-  my $sdiff;
 
   # *** Output file name, from input file name
   {
@@ -727,14 +728,14 @@ sub map_mashup($) {
       my ($base,$path,$type) = fileparse($opts{'outfile'}, qr{\.[^\.]+});
       $mfilename = $path . $base . ".html";  # Mashup
       $hfilename = $base . "-height.png";    # Height Profile
-      $sfilename = $base . "-speed.png";     # Speed Profile
       $tfilename = $base . "-tempe.png";     # Tempe Profile
       $ifilename = $base . "-time.png";      # Time Profile
+      $sfilename = $base . "-speed.png";     # Speed Profile
       # Height/Tempe Profile name with path (where to write the file to)
       $hfilename_path = $path . $hfilename;
-      $sfilename_path = $path . $sfilename;
       $tfilename_path = $path . $tfilename;
       $ifilename_path = $path . $ifilename;
+      $sfilename_path = $path . $sfilename;
     } else {    # Do normal file name generation
       my ($base,$path,$type) = fileparse($opts{'infile_plain'}, qr{\.[^\.]+});
       my $fn_title = "";    # Add title name when supplied
@@ -744,14 +745,14 @@ sub map_mashup($) {
       }
       $mfilename = $path . $base . $fn_title . ".html";  # Mashup
       $hfilename = $base . $fn_title . "-height.png";    # Height Profile
-      $sfilename = $base . $fn_title . "-speed.png";     # Speed Profile
       $tfilename = $base . $fn_title . "-tempe.png";     # Tempe Profile
       $ifilename = $base . $fn_title . "-time.png";      # Time Profile
+      $sfilename = $base . $fn_title . "-speed.png";     # Speed Profile
       # Height/Tempe Profile name with path (where to write the file to)
       $hfilename_path = $path . $hfilename;
-      $sfilename_path = $path . $sfilename;
       $tfilename_path = $path . $tfilename;
       $ifilename_path = $path . $ifilename;
+      $sfilename_path = $path . $sfilename;
     }
   }
 
@@ -839,45 +840,6 @@ sub map_mashup($) {
 			  0.825);                   # x scaling, manually tuned for equal graph size
   }  # if ($opts{'height'} )
 
-  # *** When requested generate also a speed profile
-  if ($opts{'speed'} ) {
-    # *** Speed Mashup: Only take selected points
-    # Reset values
-    undef $last_pt;
-    $k = 0;
-    $sdiff = 0;   # Set to zero, so we don't count first value as speed change
-    $smax = 0;
-    for my $trkpt (@points) {
-       if($last_pt) {
-         $sdiff = $trkpt->{'speed'} - $k;  # Speed difference between points
-	     # ignore this point when speed change is too small
-         next if ((abs($sdiff) < $opts{'speed_diff'}) || ($trkpt->{'speed'} < 0.1));
-       } # else: Add first point (Track start) always
-       # Update max speed
-       if ($trkpt->{'speed'} > $smax) {
-	     $smax = sprintf "%.2f", $trkpt->{'speed'};
-       }
-       # Add as new height point
-       $last_pt = $trkpt;
-       $k = $trkpt->{'speed'};
-       push @spoints, $trkpt;
-     }
-     # And now also add last point (end of track)
-     # Only add it when it's not done in above loop
-     $last_pt = $points[$#points];
-    if ( $last_pt != $spoints[$#spoints] ) {
-      push @spoints, $last_pt;
-    }
-
-    # Now let's create the height profile image
-    gnuplot_profile_image(@spoints, $sfilename_path, "Speed Profile",
-			  'dist', "Distance / km",  # x axis
-			  'speed', "Speed / km/h",      # y axis
-	                   undef, undef,            # no time
-			   "%3.0f",                 # y axis label: 4 digit height, space padded
-			  0.825);                   # x scaling, manually tuned for equal graph size
-  }  # if ($opts{'speed'} )
-
 
   # *** When requested generate also a temperature profile
   # Abuse above height variables here
@@ -909,19 +871,18 @@ sub map_mashup($) {
       push @tpoints, $last_pt;
     }
 
-    # Now let's create the height profile image
+    # Now let's create the temperature profile image
     gnuplot_profile_image(@tpoints, $tfilename_path,
 			  "Temperature Profile",
 			  'dist', "Distance / km",   # x axis
 			  'tempe', "Temp / °C",      # y axis
 	                   undef, undef,             # no time
-			   "% 2.0f",                 # y axis label: 2 digit temperature
- 	 	 	   0.815);                     # x scaling, manually tuned for equal graph size
+			   "%2.0f",                 # y axis label: 2 digit temperature
+ 	 	 	   0.805);                     # x scaling, manually tuned for equal graph size
   }  # if ($opts{'tempe'} )
 
 
   # *** When requested generate also a time vs distance plot
-  # Abuse above-above height variables here
   if ($opts{'time'} ) {
     # We are lazy - the gnuplot module should take care about selecting the
     # correct data points! So give it all
@@ -935,13 +896,26 @@ sub map_mashup($) {
 	                   0.835);                      # x scaling, manually tuned for equal graph size
   }
 
+  # *** When requested generate also a speed vs distance plot
+  if ($opts{'speed'} ) {
+    # We are lazy - the gnuplot module should take care about selecting the
+    # correct data points! So give it all
+    gnuplot_profile_image(@points, $sfilename_path,
+                          "Speed Profile",
+			  'dist', "Distance / km",  # x axis
+			  'speed', "Speed / km/h",  # y axis
+	                   undef, undef,            # no time
+			   "%3.0f",                 # y axis label: 3 digits speed
+			  0.815);                   # x scaling, manually tuned for equal graph size
+  }
+
   # *** Call appropriate Mash-Up Function
   if ( $opts{'google'} ) {
     map_mashup_google(@ppoints, @mpoints, $mfilename, $hfilename, $hasc, $hdesc,
-		      $sfilename, $tfilename, $ifilename, $title);
+		      $tfilename, $ifilename, $sfilename, $title);
   } elsif ( $opts{'osm'} ) {
     map_mashup_osm(@ppoints, @mpoints, $mfilename, $hfilename, $hasc, $hdesc,
-		   $sfilename, $tfilename, $ifilename, $title);
+		   $tfilename, $ifilename, $sfilename, $title);
   } 
 }
 
@@ -1062,15 +1036,15 @@ sub gnuplot_profile_image(\@$$$$$$$$$$) {
 # 3.P: Height Profile file name
 # 5.P: Accumulated Ascend
 # 6.P: Accumulated Descent
-# 7.P: Speed Profile file name
-# 8.P: Tempe Profile file name
-# 9.P: Time Profile file name
+# 7.P: Tempe Profile file name
+# 8.P: Time Profile file name
+# 9.P: Speed Profile file name
 # 10.P: Webpage title
 sub map_mashup_google(\@\@$$$$$$$$) {
   # *** Variables
   # Get arguments
   my ($lref, $mref, $outfile, $heightfile, $hasc, $hdesc,
-      $speedfile, $tempefile, $timefile, $title) = @_;
+      $tempefile, $timefile, $speedfile, $title) = @_;
 
   # *** Preparation for Markers
   # Distance with 2 digits and in km
@@ -1092,18 +1066,18 @@ sub map_mashup_google(\@\@$$$$$$$$) {
   my $vars     = { points   => $mref,
 		   line     => $lref,
 		   distance => $dist,
-		   maxspeed => $smax,
+		   speed_max => $speed_max,
 		   title    => $title,
 		   height_enable  => $opts{'height'},
 		   height_file    => $heightfile,
 		   height_ascend  => sprintf("%.0f m", $hasc),  # Formatting
 		   height_descend => sprintf("%.0f m", $hdesc), # Formatting
-		   speed_enable	  => $opts{'speed'},
-		   speed_file	  => $speedfile,
 		   tempe_enable   => $opts{'tempe'},
 		   tempe_file     => $tempefile,
 		   time_enable    => $opts{'time'},
 		   time_file      => $timefile,
+		   speed_enable	  => $opts{'speed'},
+		   speed_file	  => $speedfile,
 		   pics_enable    => $opts{'pics'}?1:0,
 		   pics_data      => $opts{'pics'},
 		 };
@@ -1123,15 +1097,15 @@ sub map_mashup_google(\@\@$$$$$$$$) {
 # 3.P: Height Profile file name
 # 5.P: Accumulated Ascend
 # 6.P: Accumulated Descent
-# 7.P: Speed Profile file name
-# 8.P: Tempe Profile file name
-# 9.P: Time Profile file name
+# 7.P: Tempe Profile file name
+# 8.P: Time Profile file name
+# 9.P: Speed Profile file name
 # 10.P: Webpage title
 sub map_mashup_osm(\@\@$$$$$$$$) {
   # *** Variables
   # Get arguments
   my ($lref, $mref, $outfile, $heightfile, $hasc, $hdesc,
-      $speedfile, $tempefile, $timefile, $title) = @_;
+      $tempefile, $timefile, $speedfile, $title) = @_;
 
   # *** Preparation for Markers
   # Distance with 2 digits and in km
@@ -1154,18 +1128,18 @@ sub map_mashup_osm(\@\@$$$$$$$$) {
   my $vars     = { points   => $mref,
 		   line     => $lref,
 		   distance => $dist,
-		   maxspeed => $smax,
+		   speed_max => $speed_max,
 		   title    => $title,
 		   height_enable  => $opts{'height'},
 		   height_file    => $heightfile,
 		   height_ascend  => sprintf("%.0f m", $hasc),  # Formatting
 		   height_descend => sprintf("%.0f m", $hdesc), # Formatting
-		   speed_enable	 => $opts{'speed'},
-		   speed_file	 => $speedfile,
 		   tempe_enable  => $opts{'tempe'},
 		   tempe_file    => $tempefile,
 		   time_enable    => $opts{'time'},
 		   time_file      => $timefile,
+		   speed_enable	 => $opts{'speed'},
+		   speed_file	 => $speedfile,
 		   pics_enable    => $opts{'pics'}?1:0,
 		   pics_data      => $opts{'pics'},
 		 };
@@ -1233,9 +1207,9 @@ sub read_commandline() {
 			  'outfile|w=s',
 			  'nographs' => \$nographs,
 			  'height!',
-			  'speed!',
 			  'tempe!',
 			  'time!',
+			  'speed!',
                           'merge',
 			  'osm|openstreetmaps|o!',
 			  'pictures|p=s{,}' => \@pics,
@@ -1270,7 +1244,7 @@ sub read_commandline() {
 
   # Disable all graphs
   if ($nographs) {
-      $opts{'height'} = $opts{'speed'} = $opts{'tempe'} = $opts{'time'} = 0;
+      $opts{'height'} = $opts{'tempe'} = $opts{'time'} = $opts{'speed'} = 0;
   }
 
   # Check when height is requested, whether gnuplot_module is available
@@ -1279,14 +1253,6 @@ sub read_commandline() {
           "could not be loaded!\n";
     print "Either install Gnuplot module, or disable height profile with the " .
            "--noheight option\n";
-    exit 1;
-  }
-  #Check when speed is requested, whether gnuplot_module is available
-  if ($opts{'speed'} and not $opts{'gnuplot_module'} ) {
-    print "ERROR: Speed Profile is requested, but module Gnuplot " .
-          "could not be loaded!\n";
-    print "Either install Gnuplot module, or disable speed profile with the " .
-	  "--nospeed option\n";
     exit 1;
   }
   # Check when tempe is requested, whether gnuplot_module is available
@@ -1303,6 +1269,14 @@ sub read_commandline() {
           "could not be loaded!\n";
     print "Either install Gnuplot module, or disable time profile with the " .
            "--notime (I am too busy) option\n";
+    exit 1;
+  }
+  #Check when speed is requested, whether gnuplot_module is available
+  if ($opts{'speed'} and not $opts{'gnuplot_module'} ) {
+    print "ERROR: Speed Profile is requested, but module Gnuplot " .
+          "could not be loaded!\n";
+    print "Either install Gnuplot module, or disable speed profile with the " .
+	  "--nospeed option\n";
     exit 1;
   }
 
