@@ -108,6 +108,12 @@ my %opts = (        # Processed options for use in the program
     # Time format for Gnuplot module
     # Template for tag:  <time>2013-09-07T15:14:45Z</time>
     time_format => '%Y-%m-%dT%H:%M:%SZ',
+    # when true (1) some <speed> tags were found in the GPX file,
+    # otherwise (0) we need to calculate them ourself
+    speed_from_gpx => 0,
+    # For manual speed calculation, update points every distance and time:
+    speed_calc_dist => '0.5',          #   500 meter
+    speed_calc_time => '300',           #  300 seconds
 
     # Settings for Picture preparation and placement on the map
     # Insert this to the medium size image name, e.g. hi.jpg -> hi.med.jpg
@@ -150,6 +156,9 @@ use File::Basename;     # File's basename
 use IO::File;           # IO File Handler, to allow also compressed files
 use Encode;             # To allow unicode caracters in file names
 use Geo::Distance;      # Distance calculation
+use Time::Piece;        # Speed calculation
+use Time::Seconds;      # Speed calculation
+
 
 # In case the Gnuplot module is available, use it
 # it's needed for the height plot
@@ -234,6 +243,7 @@ our $Prog_Name = "gpx2map";
 # Hash entries: lat(itude), lon(itude), ele(vation) - zero when not available,
 #               time - undef when not available,
 #               tempe(rature) - undef when not available,
+#               speed - undef when not available,
 #               dist(ance - added for considered points)
 my @points = ();
 # Calculated overall distance
@@ -674,6 +684,7 @@ sub read_trkpt_xml_handler($$) {
     # Try to fetch speed children, when available, update max speed
     undef $speed;
     if ($trkpt->first_child_text('speed') ) {
+	$opts{'speed_from_gpx'} = 1;   # We have found some GPX-speed
 	$speed = 0.0 + $trkpt->first_child_text('speed');
 	$speed *= 3.6; # m/s *= 3.6 km/h
 	if ($speed > $speed_max) {
@@ -709,6 +720,7 @@ sub map_mashup($) {
   my @tpoints = ();  # Temperature Profile points (reference to @points)
   my $last_pt;       # Last point
   my $k = 0;         # For distance/height calculation
+  my $t = 0;         # For time calculation
   my $mfilename;     # Output file name for Mashup
   my $hfilename;      # Output file name for Height Profile (no path)
   my $hfilename_path; # Output file name for Height Profile (with path)
@@ -771,6 +783,37 @@ sub map_mashup($) {
   # Total distance? Last track's distance
   $dist = sprintf ( "%.2fkm", $points[$#points]->{dist} );
   print "Total distance is " . $dist . " \n";
+
+  # *** When we're doing speed profiling and have no native speed information,
+  #     we need to calculate them too
+  # If they're already there it's fine, so don't do anything
+  if ( $opts{'speed'} && (! $opts{'speed_from_gpx'}) ) {
+      # Reset values
+      undef $last_pt;
+      $k = 0; $t = 0;
+      for my $trkpt (@points) {
+	  die "UNEXPECTED ENCOUNTER - Speed calculation without timing information impossible"
+	      unless $trkpt->{time};
+	  if (! $last_pt) {   # Assign first point
+	      $last_pt = $trkpt;
+	      next;
+	  }
+	  $k = $trkpt->{dist} - $last_pt->{dist};   # Distance in km
+	  $t = Time::Piece->strptime($trkpt->{time}, $opts{'time_format'})
+	       - Time::Piece->strptime($last_pt->{time}, $opts{'time_format'});   # Time in s
+	  next if $k < $opts{'speed_calc_dist'} || $t < $opts{'speed_calc_time'};
+	  # Reached here, we calculate one speed point
+	  # Calculate speed and assign
+	  $trkpt->{speed} = $k/($t/60/60);   # in km/h
+	  # Also get max speed
+	  if ($trkpt->{speed} > $speed_max) {
+	      $speed_max = sprintf("%.2f", $trkpt->{speed});
+	  }
+	  # Assign for next calculation
+	  $last_pt = $trkpt;
+      }
+  }  # if ( $opts{'speed'} && (! $opts{'speed_from_gpx'}) ) {
+
 
   # *** Track Mashup: Only take selected points
   # Reset values
@@ -836,7 +879,7 @@ sub map_mashup($) {
 			  'dist', "Distance / km",  # x axis
 			  'ele', "Height / m",      # y axis
 	                   undef, undef,            # no time
-			   "%4.0f",                 # y axis label: 4 digit height, space padded
+			   "% 4.0f",                 # y axis label: 4 digit height, space padded
 			  0.825);                   # x scaling, manually tuned for equal graph size
   }  # if ($opts{'height'} )
 
@@ -877,7 +920,7 @@ sub map_mashup($) {
 			  'dist', "Distance / km",   # x axis
 			  'tempe', "Temp / °C",      # y axis
 	                   undef, undef,             # no time
-			   "%2.0f",                 # y axis label: 2 digit temperature
+			   "% 2.0f",                 # y axis label: 2 digit temperature
  	 	 	   0.805);                     # x scaling, manually tuned for equal graph size
   }  # if ($opts{'tempe'} )
 
@@ -893,7 +936,7 @@ sub map_mashup($) {
                            # GPX time format of the y axis
 			   # Template: 2013-09-07T15:14:45Z
 	                   "y", $opts{'time_format'}, "%H:%M",
-	                   0.835);                      # x scaling, manually tuned for equal graph size
+	                   0.825);                      # x scaling, manually tuned for equal graph size
   }
 
   # *** When requested generate also a speed vs distance plot
@@ -905,8 +948,8 @@ sub map_mashup($) {
 			  'dist', "Distance / km",  # x axis
 			  'speed', "Speed / km/h",  # y axis
 	                   undef, undef,            # no time
-			   "%3.0f",                 # y axis label: 3 digits speed
-			  0.815);                   # x scaling, manually tuned for equal graph size
+			   "% 3.1f",                 # y axis label: 3/1 digits speed
+			  0.825);                   # x scaling, manually tuned for equal graph size
   }
 
   # *** Call appropriate Mash-Up Function
@@ -951,27 +994,30 @@ sub gnuplot_profile_image(\@$$$$$$$$$$) {
   # Transform Data to x and y
  # print $xlabel . "\n";
   for my $trkpt (@$pref) {
-    push @x, $trkpt->{$xdata};   # That is always defined
-    # In case of invalid/nonexisting data set it to 0 (can happen with missing time data in GPX file)
-    $tmp = $trkpt->{$ydata};
-    $tmp = 0 if ! $tmp;
-    push @y, $tmp;
-    # print $trkpt->{lat}  . " " . $trkpt->{lon}  . " " .$trkpt->{$xdata} . " " . $trkpt->{$ydata} . "\n";
+    # Skip invalid/nonexisting data
+    # Can happen with missing tempe data in GPX file, and speed is also not calculated for all points
+    if ($trkpt->{$ydata}) {
+	push @x, $trkpt->{$xdata};
+	push @y, $trkpt->{$ydata};
+	# print $trkpt->{lat}  . " " . $trkpt->{lon}  . " " .$trkpt->{$xdata} . " " . $trkpt->{$ydata} . "\n";
+    }
   }
 
-  # Because of Tempe first or last value of @y could be undef
-  # Need to interpolate by next value
-  if (! defined($y[0])) {
+  # Because of Tempe first or last value of @y could be missing
+  # Need to reinsert and interpolate by next value
+  if ( $pref->[0]->{$xdata} != $x[0] ) {
       # Take next one - error when only this one value - this shoul not happen
-	 die "ERROR: gnuplot_profile_image - only one value y-value for "  . $title . " - this shoul not happen"
-	     unless $#y > 0;
-	 $y[0] = $y[1]
+      die "ERROR: gnuplot_profile_image - only one value y-value for "  . $title . " - your track too short for speed calculation?"
+	  unless $#y > 0;
+      unshift @x, $pref->[0]->{$xdata};
+      unshift @y, $y[0];
   }
-  if (! defined($y[$#y])) {
+  if ($pref->[scalar @{$pref} - 1]->{$xdata} != $x[$#x] ) {
       # Take next one - error when only this one value - this shoul not happen
-	 die "ERROR: gnuplot_profile_image - only one value y-value for "  . $title . " - this shoul not happen"
+	 die "ERROR: gnuplot_profile_image - only one value y-value for "  . $title . " - your track too short for speed calculation?"
 	     unless $#y > 0;
-	  $y[$#y] = $y[$#y-1]
+	 push @x, $pref->[scalar @{$pref} - 1]->{$xdata};
+	 push @y, $y[$#y];
   }
   # One special case can occur when there is no (tempe) data at all:
   # Two undef values
