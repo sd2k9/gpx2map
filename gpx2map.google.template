@@ -152,15 +152,27 @@
       <li>Accumulated Ascend: [% height_ascend %]</li>
       <li>Accumulated Descend: [% height_descend %]</li>
       [%- END %]
+      [%- IF speed_enable %]
+      [%- # Only print when speed display is enabled %]
+      <li>Max speed: [% maxspeed %] km/h</li>
+      [%- END %]
     </ul>
 
-  [%- IF height_enable || tempe_enable || time_enable %]
+  [%- IF height_enable || speed_enable || tempe_enable || time_enable %]
   <table>
   [%- IF height_enable %]
   [%- # Only print when height display is enabled %]
   <!-- Height Display -->
   <tr><td style="text-align:right">
      <img alt="Height Profile" src="[% height_file %]" />
+  </td></tr>
+  [%- END %]
+
+  [%- IF speed_enable %]
+  [%- # Only print when speed display is enabled %]
+  <!-- Speed Display -->
+  <tr><td style="text-align:right">
+     <img alt="Speed Profile" src="[% speed_file %]" />
   </td></tr>
   [%- END %]
 
