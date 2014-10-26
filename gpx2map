@@ -6,8 +6,8 @@
 #  status: New feature testing
 #
 #      created: 2007-07-27
-#      Version: $LastChangedRevision: 15$
-#  last change: $LastChangedDate: 2014-03-15$
+#      Version: $LastChangedRevision: DEV$
+#  last change: $LastChangedDate: DEV$
 #  Based on code from Mike Schilli, 2006 (m@perlmeister.com)
 #  http://www.linux-magazin.de/heft_abo/ausgaben/2006/07/hinterm_horizont
 #
@@ -1264,8 +1264,8 @@ sub read_commandline() {
 sub versionstring ($) {
 
     my $verbose = shift;         # True when we should return long version
-    my $rev = '$LastChangedRevision: 15$';
-    my $date = '$LastChangedDate: 2014-03-15$';
+    my $rev = '$LastChangedRevision: DEV$';
+    my $date = '$LastChangedDate: DEV$';
 
     # Filter revision
     if ($rev =~ /LastChangedRevision: (\d+)/) {

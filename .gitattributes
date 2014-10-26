@@ -3,4 +3,4 @@
 # git config filter.keywordexpander.clean ./do_keyword_expansion %f
 # --> NOT NEEDED: git config filter.keywordexpander.smudge cat
 # Problem with this: local repository is not automatically updated
-gpx2map    filter=keywordexpander
+# gpx2map    filter=keywordexpander
