@@ -1,44 +1,64 @@
 <!-- mit Stylesheets -->
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN"
-"http://www.w3.org/TR/1998/REC-html40-19980424/strict.dtd">
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+                      "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 
-<html>
+<html xmlns="http://www.w3.org/1999/xhtml">
 <!-- META f&uuml;r Suchdienste -->
-<meta name="description" content="gpx2map converts gps tracks to google or openstreetmaps map overlays">
-<meta name="author" content="Robert Lange">
-<meta name="keywords" content="gpx2map, gps, gpx, gpsbabel, google maps, openstreetmaps, osm, gps track">
-<meta name="date" content="2012-03-17">
-<!-- META f&uuml;r Browser -->
-<meta http-equiv="content-type" content="text/html; charset=utf-8">
-<meta http-equiv="Content-Style-Type" content="text/css">
+<head>
+<meta name="description" content="gpx2map converts gps tracks to google or openstreetmaps map overlays" />
+<meta name="author" content="Robert Lange" />
+<meta name="keywords" content="gpx2map, gps, gpx, gpsbabel, google maps, openstreetmaps, osm, gps track" />
+<meta name="date" content="$LastChangedDate$" />
+<!-- META for Browser -->
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<meta http-equiv="Content-Style-Type" content="text/css" />
 <title>gpx2map</title>
 </head>
 
 
 <body>
 
-<h1 style="text-align:center">gpx2map</h1>
+<h1 style="text-align:center">gpx2map<br />$LastChangedRevision$</h1>
+
+
+<hr />
+
+<h2>Homepage</h2>
+
+<p>
+The homepage of gpx2map is located at:<br />
+<a href="https://sethdepot.org/gpx2map">https://sethdepot.org/gpx2map</a>
+</p>
+
+<hr />
 
 <h2>Download</h2>
 
-<p>Get latest version:
-<a href="gpx2map_0.409.tar.bz2">gpx2map</a>
-</p>
 
 <p>
-<em>If you browse this file locally, please look at the homepage of gpx2map:</em>
-<a href="http://sethdepot.org/gpx2map/">http://sethdepot.org/gpx2map</a>
+  The development is ongoing on <a href="https://github.com/">Github</a>
+  in the master branch,
+  Just fetch the latest version from here:<br />
+  <a href="https://github.com/sd2k9/gpx2map">https://github.com/sd2k9/gpx2map</a>
 </p>
 
-<hr>
 
-			  <h2>Overview</h2>
+<p>If you prefer having a version number or download an archive file,
+use the
+<a href="https://github.com/sd2k9/gpx2map/releases/">releases</a> instead.<br />
+It could be out of date, so I suggest following the master branch instead.
+</p>
+
+ 
+<hr />
+
+<h2>Overview</h2>
 
 <p>gpx2map reads a gps track in GPX format (as produced by
 e.g. <a href="http://www.gpsbabel.org/">gpsbabel</a>) and writes out an
 <a href="http://maps.google.com">Google Map</a> or
 <a href="http://openstreetmaps.org">OpenStreetMaps</a>
-mash-up containing the route and a height profile.
+mash-up containing the route and additonal information.
 gpx2map can also show GPS-tagged photos along the map.</p>
 
 <p>It comes very handy when you e.g. own an
@@ -48,9 +68,10 @@ use <a href="http://www.gpsbabel.org/">gpsbabel</a> to fetch your tracks
 in GPX format and let gpx2map write out an map overlay for you.</p>
 
 
+<hr />
 
 
-			       <h2>License</h2>
+<h2>License</h2>
 
 <p>HTML Include is put under the
 <a href="http://www.gnu.org/licenses/gpl.html">GNU General Public License Version 3</a>.
@@ -59,7 +80,7 @@ in GPX format and let gpx2map write out an map overlay for you.</p>
 <pre>
 gpx2map - Reads a gps track in GPX format and writes out an Google Map or OpenStreetMaps
           mash-up containing the route and additonal information
-Copyright (C) 2007-2010,2013 Robert Lange
+Copyright (C) 2007-2010,2013,2014 Robert Lange
 
  This program is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License version 3
@@ -79,7 +100,7 @@ Copyright (C) 2007-2010,2013 Robert Lange
 <h2><a name="req">Requirements</a></h2>
 
 <p>First of all Perl itself is needed, but also some packages
-from <a href="http://www.cpan.org">CPAN</a>.<br>
+from <a href="http://www.cpan.org">CPAN</a>.<br />
 The CPAN-Modules can be found at <a href="http://search.cpan.org">http://search.cpan.org</a>
 </p>
 
@@ -94,7 +115,7 @@ The CPAN-Modules can be found at <a href="http://search.cpan.org">http://search.
 
 </ul>
 
-<p>Chart::Gnuplot is required for drawing the height graph. When you don't
+<p>Chart::Gnuplot is required for drawing the graphs. When you don't
 want to use this feature this package is not needed.</p>
 
 <p>Image::ExifTool and convert are required for adding geocoded images to the map. When you don't
@@ -105,30 +126,42 @@ one mentioned here. When you encounter problems just
 drop me a note.</p>
 
 
+<hr />
+
 <h2>Installation</h2>
 
-<p>Just copy (or link) the file <code>gpx2map</code> into your path or any place you like.<br>
+<p>Just copy (or link) the file <code>gpx2map</code> into your path or any place you like.<br />
 Put the mash-up template files <code>gpx2map.google.template</code> and
  <code>gpx2map.osm.template</code> 
 where you put gpx2map itself (not to the link, in case you linked it).
 </p>
 
 
+<hr />
+
 <h2>Operation</h2>
 
 
-<p>The input file formal is <a href="http://www.topografix.com/gpx.asp">GPX</a>.
+<p>The input file format is <a href="http://www.topografix.com/gpx.asp">GPX</a>.
 You can get this e.g. by
 <a href="http://www.gpsbabel.org/">gpsbabel</a> (gpx2map includes a shortcut for calling
-<a href="http://www.gpsbabel.org/">gpsbabel</a>).<br>
+<a href="http://www.gpsbabel.org/">gpsbabel</a>).<br />
 gpx2map then reads the <a href="http://www.topografix.com/gpx.asp">GPX</a> file
 and writes out a html page containing either an Google or
 OpenStreetMaps mash-up.</p>
 
 <p>An <a href="http://www.topografix.com/gpx.asp">GPX</a> file can contain several
-tracks. 
+tracks.
 You can select to write out only one specific track, merge all track points
 together or create one html file for each track.</p>
+
+<p>Along the track also various graphs are generated. You can have a height
+graph, a speed graph, a time graph and a temperature graph.<br />
+When the data of a speed sensor is available, these values are used,
+otherwise average speed data is calculated.<br/>
+For the temperature graph you need the
+<a href="https://buy.garmin.com/en-US/US/shop-by-accessories/sensors/tempe-/prod107335.html">Garmin tempe sensor</a>.
+</p>
 
 <p>When requested, GPS-tagged (so called geocoded) pictures are shown
 along with the track.
@@ -137,11 +170,9 @@ the file suffix) and an shrinked version (640x640 size, add ".med" before
 the file suffix) are created. The icons are then placed directly on the map
 at the correct location. When you click these icons,
 the shrinked pictures along with position and time when the shot was taken
-are shown in an popup.<br>
+are shown in an popup.<br />
 The described behaviour and defaults can be configured inside the script,
-see section <a href="#Configuration">Configuration</a>. Currently the output for OpenStreetMaps is
-somewhat ugly and jumpy. When you can help me out with the OpenLayers API,
-you're welcome.</p>
+see section <a href="#Configuration">Configuration</a>.</p>
 
 <p>In case you don't have a camera with native GPS, you can use tools like
 <a href="http://freefoote.dview.net/linux_gpscorr.html">gpscorrelate</a> to
@@ -150,12 +181,14 @@ to the time stamps of the photos and adds the correlated position into
 the EXIF header.</p>
 
 
+<hr />
+
 			   <h2>Program Options</h2>
 
 <p><samp>
-     gpx2map [--help|-h] [--version|-V] [--route|-r route] [--merge]<br>
-             [--title|-t title] [--osm|-o]<br>
-             [--[no]height] [--[no]tempe]  [--[no]time]<br>
+     gpx2map [--help|-h] [--version|-V] [--route|-r route] [--merge]<br/>
+             [--title|-t title] [--osm|-o]<br/>
+             [--[no]height] [--[no]tempe]  [--[no]time]  [--[no]speed]<br/>
              [--outfile|-w file] inputfile [--pictures|-p img1 img2 ...]
 </samp></p>
 
@@ -178,17 +211,21 @@ the EXIF header.</p>
 <tr><td>--outfile, -w &lt;file&gt;</td>    <td>For --route or --merge progessing
                                      the ouput path and base filename can be given</td></tr>
 
-<tr><td>--height|--noheight</td>    <td>Enable (Default) or Disable height profile<td></tr>
+<tr><td>--height|--noheight</td>    <td>Enable (Default) or Disable height profile</td></tr>
 
 <tr><td>--tempe|--notempe</td>    <td>Enable (Default) or Disable Temperature profile
-                                      Data provided by Garmin Tempe sensor<td></tr>
+                                      Data provided by Garmin Tempe sensor</td></tr>
 
-<tr><td>--time|--notime</td>    <td>Enable (Default) or Disable Time vs. distance profile<td></tr>
+<tr><td>--time|--notime</td>    <td>Enable (Default) or Disable Time vs. distance profile</td></tr>
 
+<tr><td>--speed|--nospeed</td>    <td>Enable (Default) or Disable Speed profile</td></tr>
+
+<tr><td>--nographs</td>    <td>Disable all profile graphs, other profile
+                                 options are ignored</td></tr>
 
 <tr><td>--pictures|-p img1 img2 ...</td>    <td>Place a shrinked version of these images
-                                                  on the map<td></tr>
-<tr><td></td>	                              <td>Pictures must include GPS coordinates<td></tr>
+                                                  on the map</td></tr>
+<tr><td></td>	                              <td>Pictures must include GPS coordinates</td></tr>
 
 <tr><td>inputfile</td>                    <td>GPX file to read</td></tr>
 <tr><td></td>                    <td> Can be compressed with gzip, bzip2, lzma/xz</td></tr>
@@ -229,55 +266,38 @@ the executable. Just search for "global settings".</p>
 <dt>height_diff</dt><dd>Height difference between height diagram points in meter.
 	                 The more accurate your GPS records height information,
                          the smaller value you can use here (and vice versa)</dd>
+<dt>tempe_diff</dt><dd>Temperature difference between tempe diagram points in grad celcius</dd>
+<dt>speed_calc_dist</dt><dd>For manual speed calculation, update points every distance</dd>
+<dt>speed_calc_TIME</dt><dd>For manual speed calculation, update points every time</dd>
 <dt>gpsbabel_cmd</dt><dd>Call to gpsbabel, without output file name.
-	                 The shell tokens are split up into fields.<br>
+	                 The shell tokens are split up into fields.<br />
                          You most certainly need to change here to use
                          gpsbabel with gpx2map.</dd>
 </dl>
 
 
 
+<hr />
+
 			       <h2>Examples</h2>
 
-<table style="border-width:0px;" rules="groups" cellpadding="5" cellspacing="5">
- <thead>
- <tr>
-   <th>GPX File</th>
-   <th>Google Output</th>
-   <th>OSM Output</th>
- </tr>
- </thead>
- <tr>
-  <td><a href="examples/ischgl.xml">ischgl.xml</a></td>
-  <td><a href="examples/ischgl-google.html">ischgl-google.html</a></td>
-  <td><a href="examples/ischgl-osm.html">ischgl-osm.html</a></td>
- </tr>
- <tr>
-  <td><a href="examples/juh.xml">juh.xml</a></td>
-  <td><a href="examples/juh-google.html">juh-google.html</a></td>
-  <td><a href="examples/juh-osm.html">juh-osm.html</a></td>
- </tr>
- <tr>
-  <td><a href="examples/monte_viso.gpx">monte_viso.gpx</a></td>
-  <td><a href="examples/monte_viso-google.html">monte_viso-google.html</a></td>
-  <td><a href="examples/monte_viso-osm.html">monte_viso-osm.html</a></td>
- </tr>
- <tr>
-  <td style="vertical-align: top;"><a href="/trips/hiking/2007-09-italy/gps/italy_hiking.xml">italy_hiking.xml</a></td>
-  <td><a href="/trips/hiking/2007-09-italy/gps/lago_di_garda-mount_baldo.html">Monte Baldo</a><br>
-      <a href="/trips/hiking/2007-09-italy/gps/lago_di_garda-vesio.html">Vesio</a><br>
-      <a href="/trips/hiking/2007-09-italy/gps/brenta_dolomites-via_bocchette.html">Brenta Dolomites</a></td>
-  <td></td>
- </tr>
-</table>
 
+<p>Have a look at my homepage for some examples:<br />
+  <a href="https://sethdepot.org/site#Hiking">https://sethdepot.org/site#Hiking</a>
+</p>
+
+<p>Please note that the maps are generated with the gpx2map version at their creation
+time and thus don't show all the features of the current version.</p>
+
+
+<hr />
 
 			       <h2>Known Issues</h2>
 
 <p>For picture placement to work you have to run gpx2map from the directory of the
 GPX file, and you cannot use absolute paths to pictures.</p>
 
-<p>The browser compatibility could be improved.<br>
+<p>The browser compatibility could be improved.<br />
 gpx2map generated pages are tested sucessfully with Firefox and Chromium,
 with most other (older) browsers you can expect drawbacks.
 </p>
@@ -286,46 +306,41 @@ with most other (older) browsers you can expect drawbacks.
 I am still struggeling with the API and the lack of usable examples.</p>
 
 
-<p>To run gpx2map on windows probably have to make the following adaptions:<br>
+<p>To run gpx2map on windows probably have to make the following adaptions:<br />
 In the sub height_profile_image add the line:
-<code>$filename =~ s{\\}{/}g;</code><br>
+<code>$filename =~ s{\\}{/}g;</code><br />
 In Gnuplot.pm, sub _execute, replace the line 
 <code>my $gnuplot = 'gnuplot';</code>
-with<br>
+with<br />
 <code>my $gnuplot = 'C:/gnuplot/bin/pgnuplot.exe';</code></p>
 
 <p>When you want to contribute to gpx2map,
 just contact <a href="http://sethdepot.org/site/RoLa">me</a>.</p>
 
 
+<hr />
 
 			       <h2>Author and Credits</h2>
 
 
-<p>The author is <a href="http://sethdepot.org/site/RoLa">Robert Lange</a><br>
+<p>The author is <a href="http://sethdepot.org/site/RoLa">Robert Lange</a><br />
 If you have any questions, just write me.</p>
-
-<p>The home page of gpx2map is <a href="http://sethdepot.org/gpx2map/">http://sethdepot.org/gpx2map</a><br>
-Please look there for new versions.</p>
-
 
 
 
 <!-- Ende und Autor -->
-<div style="margin-top:35px"><hr style="width:95%;text-align:center">
+<div style="margin-top:35px"><hr style="width:95%;text-align:center" />
 <table style="width:95%;margin-left:auto;margin-right:auto">
   <colgroup width="1*" span="3"></colgroup>
-  <tr valign=top>
+  <tr valign="top">
     <td style="text-align:left">Created by <a href="http://sethdepot.org/site/RoLa">rola</a></td>
     <td style="text-align:center;width:100px">
 	 <a href="http://validator.w3.org/check/referer">
-	 <img style="border-width:0px" src="http://www.w3.org/Icons/valid-html40" alt="Valid HTML 4.0!" height="31" width="88">
+	 <img style="border-width:0px"  src="http://www.w3.org/Icons/valid-xhtml10" height="31" width="88" alt="Valid xHTML 1.0!" />
     </a></td>
     <td style="text-align:right">
-         <!-- last modification: <!--INCLUDEDATE-- >2012-03-17<!--ENDINC-- ><br>
-         <div style="font-size:smaller">$LastChangedRevision: 423 $<br>$LastChangedDate: 2012-04-01 19:00:54 +0200 (Sun, 01 Apr 2012) $</div>
-         //-->
-	 GitHub-Link
+         last modification:<br />
+	 $LastChangedDate$
     </td>
   </tr>
 </table></div>
