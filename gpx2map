@@ -14,7 +14,7 @@
 #
 # gpx2map - Reads a gps track in GPX format and writes out an Google Map or or OpenStreetMaps
 #           mash-up containing the route and additonal information
-# Copyright (C) 2007-2010,2013 Robert Lange <sd2k9@sethdepot.org>
+# Copyright (C) 2007-2010,2013,2014 Robert Lange <sd2k9@sethdepot.org>
 #
 #  This program is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License version 3
@@ -111,7 +111,8 @@ my %opts = (        # Processed options for use in the program
     # when true (1) some <speed> tags were found in the GPX file,
     # otherwise (0) we need to calculate them ourself
     speed_from_gpx => 0,
-    # For manual speed calculation, update points every distance and time:
+    # For manual speed calculation, update points every distance and time
+    # Both conditions must be satisfied for a new point to be generated
     speed_calc_dist => '0.5',          #   500 meter
     speed_calc_time => '300',           #  300 seconds
 
@@ -300,7 +301,7 @@ USAGE
 
      $Prog_Name [--help|-h] [--version|-V] [--route|-r route] [--merge]
              [--title|-t title] [--osm|-o]
-             [--[no]height] [--[no]tempe]  [--[no]time]
+             [--[no]height] [--[no]tempe]  [--[no]time] [--[no]speed]
              [--outfile|-w file] inputfile [--pictures|-p img1 img2 ...]
 
        --help, -h                This help screen
@@ -788,11 +789,12 @@ sub map_mashup($) {
   #     we need to calculate them too
   # If they're already there it's fine, so don't do anything
   if ( $opts{'speed'} && (! $opts{'speed_from_gpx'}) ) {
+      print "No <speed> tags found in file, calculating speed information instead\n";
       # Reset values
       undef $last_pt;
       $k = 0; $t = 0;
       for my $trkpt (@points) {
-	  die "UNEXPECTED ENCOUNTER - Speed calculation without timing information impossible"
+	  die "UNEXPECTED ENCOUNTER - Speed calculation without timing information impossible, please disable both with --nospeed --notime"
 	      unless $trkpt->{time};
 	  if (! $last_pt) {   # Assign first point
 	      $last_pt = $trkpt;
@@ -1393,7 +1395,7 @@ sub versionstring ($) {
        unless $verbose;
 
     "$Prog_Name revision $rev $date\n"
-      . 'Copyright (C) 2007-2010,2013 Robert Lange <sd2k9@sethdepot.org>' . "\n"
+      . 'Copyright (C) 2007-2010,2013,2014 Robert Lange <sd2k9@sethdepot.org>' . "\n"
       . 'Based on code by Mike Schilli, 2006 (m@perlmeister.com)' . "\n"
       . 'This program comes with ABSOLUTELY NO WARRANTY.'  . "\n"
       . 'This program is free software: you can redistribute it and/or modify' . "\n"
