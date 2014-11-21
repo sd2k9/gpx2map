@@ -1,17 +1,15 @@
 #!/bin/sh
 # Rebuild examples
 
-gpx2map ischgl.xml
-mv -v ischgl-Ischgl.html ischgl-google.html
-gpx2map --osm ischgl.xml
-mv -v  ischgl-Ischgl.html ischgl-osm.html
 
-gpx2map juh.xml
-mv -v juh-juh.html juh-google.html
-gpx2map --osm juh.xml
-mv -v juh-juh.html juh-osm.html
+../gpx2map --merge -w ischgl-google --nospeed --notime --notemp ischgl.xml
+../gpx2map --merge -w ischgl-osm --nospeed --notime --notemp --osm ischgl.xml
 
-gpx2map monte_viso.gpx
-mv -v monte_viso-MONTE_VISO.html monte_viso-google.html
-gpx2map --osm monte_viso.gpx
-mv -v monte_viso-MONTE_VISO.html monte_viso-osm.html
+../gpx2map --merge -w juh-google --nospeed --notime --notemp juh.xml
+../gpx2map --merge -w juh-osm --nospeed --notime --notemp --osm juh.xml
+
+../gpx2map --merge -w monte_viso-google --nospeed --notime --notemp monte_viso.gpx
+../gpx2map --merge -w monte_viso-osm --nospeed --notime --notemp --osm monte_viso.gpx
+
+../gpx2map --merge -w native-speed-data-google --notemp native-speed-data.gpx
+../gpx2map --merge -w native-speed-data-osm --notemp --osm native-speed-data.gpx
