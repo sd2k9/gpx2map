@@ -2,33 +2,51 @@
 #
 # Filter script to do simple SVN-like keyword expansion for
 # release.
-# Can be used with git filters - see file .gitattributes
-# Text to change is taken from stdin, the file to consider as master
-# file is set below.
+# In contrast to SVN the keywords are REPLACED completely, so no post-processing
+# is required for the release branch.
+# Disadvantage: Not suitable for rolling release.
 #
-# Copyright (C) 2010,2013 Robert Lange <sd2k9@sethdepot.org>
+# Copyright (C) 2010,2013,2014 Robert Lange <sd2k9@sethdepot.org>
 # Licensed under the GNU General Public License, version 3
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see {http://www.gnu.org/licenses/}.
 #
 #
 # Supported Keywords are:
-# Number of commits: $LastChangedRevision$
+# Number of commits on this branch: $LastChangedRevision$
 # Last commit date: $LastChangedDate$
 
 
 # *** Settings
-# Files to consider as master - take command line argument
-FILE="$1"
+# Major Version to prepend
+MAJOR="0."
+# Files to consider as master - fetch version/revcount from this file
+# --> Don't use masterfile, use all commits instead so we also catch docu changes
+# MASTERFILE="gpx2map"
+# Compare against which branch?
+COMPBRANCH="master"
+# And update the following files
+FILESTOCHANGE="gpx2map gpx2map.html"
+
 
 # Get commit count for the master file
-REVCOUNT=$(git log --pretty=oneline -- "$FILE"|wc -l)
+REVCOUNT=$(git log --pretty=oneline ${COMPBRANCH}.. -- "$MASTERFILE"|wc -l)
+VERSION="${MAJOR}${REVCOUNT}"
 # Get date for the master file
-DATE=$(git log --date=short --pretty=format:"%ad" -1 -- "$FILE")
+DATE=$(git log --date=short --pretty=format:"%ad" -1 -- "$MASTERFILE")
+
+# Status infos
+echo "Version: ${VERSION}"
+echo "Date: ${DATE}"
+echo "Files to change: ${FILESTOCHANGE}"
 
 
 # *** Perform changes
-cat | \
-   sed -e "s/\\\$LastChangedRevision.*\\\$/\\\$LastChangedRevision: ${REVCOUNT}\\\$/g" | \
-   sed -e "s/\\\$LastChangedDate.*\\\$/\\\$LastChangedDate: ${DATE}\\\$/g"
+for fil in ${FILESTOCHANGE}; do
+cp -v "$fil" "$fil.bak"
+cat "$fil.bak" | \
+   sed -e "s/\\\$LastChangedRevision.*\\\$/${VERSION}/g" | \
+   sed -e "s/\\\$LastChangedDate.*\\\$/${DATE}/g" > "$fil"
+done
 
+echo "Done"
