@@ -4,7 +4,9 @@
 # release.
 # In contrast to SVN the keywords are REPLACED completely, so no post-processing
 # is required for the release branch.
+# Also the Mashup templates are changed to include the gpx2map version
 # Disadvantage: Not suitable for rolling release.
+#
 #
 # Copyright (C) 2010,2013,2014 Robert Lange <sd2k9@sethdepot.org>
 # Licensed under the GNU General Public License, version 3
@@ -27,6 +29,8 @@ MAJOR="0."
 COMPBRANCH="master"
 # And update the following files
 FILESTOCHANGE="gpx2map gpx2map.html"
+# Special Handling for the "created with ..." stanca in the templates for this files
+FILESCREATEDWITHCHANGE="gpx2map.google.template  gpx2map.osm.template"
 
 
 # Get commit count for the master file
@@ -42,11 +46,20 @@ echo "Files to change: ${FILESTOCHANGE}"
 
 
 # *** Perform changes
+# Change keyword files
 for fil in ${FILESTOCHANGE}; do
-cp -v "$fil" "$fil.bak"
-cat "$fil.bak" | \
+ echo "Keyword Replacement: Changing $fil ..."
+ cp "$fil" "$fil.bak"
+ cat "$fil.bak" | \
    sed -e "s/\\\$LastChangedRevision.*\\\$/${VERSION}/g" | \
    sed -e "s/\\\$LastChangedDate.*\\\$/${DATE}/g" > "$fil"
+done
+# Change Templates
+for fil in ${FILESCREATEDWITHCHANGE}; do
+ echo "Created-With Replacement: Changing $fil ..."
+ cp "$fil" "$fil.bak"
+ cat "$fil.bak" | \
+   sed -e "s/created with <a href=\"http:\/\/sethdepot.org\/gpx2map\/\">gpx2map<\/a>/created with <a href=\"http:\/\/sethdepot.org\/gpx2map\/\">gpx2map ${VERSION}<\/a>/g" > "$fil"
 done
 
 echo "Done"
