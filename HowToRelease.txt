@@ -1,0 +1,16 @@
+What to do to prepare a new release
+***********************************
+- Change to release branch
+  git checkout ReleaseV0
+- Merge Master
+  git merge master
+- Run keyword expansion
+  ./do_keyword_expansion
+- Commit changes
+  git add -a
+  git commit
+- Tag this release & Push it
+  git tag 0.1
+  git push origin 0.1
+- Also merge Github Page Branch
+  ???
