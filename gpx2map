@@ -481,6 +481,9 @@ sub main() {
     $ifile->open($opts{'infile'},"r")
       or die "Failed opening $opts{'infile'}";
   }
+  # Check for any content
+  die "Failure opening $opts{'infile'} or file has no content\n"
+      if $ifile->eof;
 
   # *** Do parsing depending on the modi selected
   if ( $opts{'merge'} or defined $opts{'route'} ) {
