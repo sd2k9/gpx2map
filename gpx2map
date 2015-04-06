@@ -997,7 +997,7 @@ sub gnuplot_profile_image(\@$$$$$$$$$$) {
   my $tmp;               # Temp variable
 
   # Transform Data to x and y
- # print $xlabel . "\n";
+  # print "DBG:" . $ydata . "\n";
   for my $trkpt (@$pref) {
     # Skip invalid/nonexisting data
     # Can happen with missing tempe data in GPX file, and speed is also not calculated for all points
@@ -1008,8 +1008,15 @@ sub gnuplot_profile_image(\@$$$$$$$$$$) {
     }
   }
 
+  # Check that there is data at all
+  if ( (! @x) || (! @y) ) {
+      die "ERROR: No data found at all for "  . $title . " - please disable this profile"
+	  unless $#y > 0;
+  }
+
   # Because of Tempe first or last value of @y could be missing
   # Need to reinsert and interpolate by next value
+  # print "DBG: $pref->[0]->{$xdata} != $x[0]\n";
   if ( $pref->[0]->{$xdata} != $x[0] ) {
       # Take next one - error when only this one value - this shoul not happen
       die "ERROR: gnuplot_profile_image - only one value y-value for "  . $title . " - your track too short for speed calculation?"
