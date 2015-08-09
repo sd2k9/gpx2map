@@ -156,6 +156,10 @@
       [%- # Only print when speed display is enabled %]
       <li>Max speed: [% speed_max %] km/h</li>
       [%- END %]
+      [%- IF total_time %]
+      [%- # Only print when data is available %]
+      <li>Total walking time: [% total_time %]</li>
+      [%- END %]
     </ul>
 
   [%- IF height_enable || speed_enable || tempe_enable || time_enable %]
