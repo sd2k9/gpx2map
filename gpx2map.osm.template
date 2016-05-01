@@ -9,7 +9,7 @@
          html, body {height: 100%}   <!-- Required for strict Doctype, otherwise map is zero size -->
     </style>
     <!-- bring in the OpenLayers and OpenStreetMap javascript libraries -->
-    <script type="text/javascript" src="//www.openlayers.org/api/OpenLayers.js"></script>
+    <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/openlayers/2.13.1/OpenLayers.js"></script>
     <script type="text/javascript" src="//www.openstreetmap.org/openlayers/OpenStreetMap.js"></script>
 
    <script type="text/javascript">
