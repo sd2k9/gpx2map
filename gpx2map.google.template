@@ -9,7 +9,7 @@
     <style type="text/css">
          html, body {height: 100%}   <!-- Required for strict Doctype, otherwise map is zero size -->
     </style>
-    <script type="text/javascript" src="//maps.google.com/maps/api/js?sensor=false"></script>
+    <script type="text/javascript" src="https://maps.google.com/maps/api/js?sensor=false"></script>
     <script type="text/javascript">
     //<![CDATA[
 
@@ -33,10 +33,10 @@
       map: map,
       [%- IF loop.first %]
       [%- # First track point: "S" %]
-      icon: "//www.google.com/mapfiles/markerS.png",
+      icon: "https://www.google.com/mapfiles/markerS.png",
       [%- ELSIF loop.last %]
       [%- # Last track point: "E" %]
-      icon: "//www.google.com/mapfiles/markerE.png",
+      icon: "https://www.google.com/mapfiles/markerE.png",
       [%- ELSE %]
       [%- # Normal Icon %]
       [%- END %]
@@ -134,7 +134,7 @@
   <tr>
   <td style="text-align:left;">Distance is [% distance %]</td>
   <td style="text-align:left;"><a href="#addinfos">Additional Information</a></td>
-  <td style="text-align:right;">created with <a href="//sethdepot.org/gpx2map/">gpx2map</a></td>
+  <td style="text-align:right;">created with <a href="https://sethdepot.org/gpx2map/">gpx2map</a></td>
   </tr>
   </table>
 
