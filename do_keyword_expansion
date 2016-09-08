@@ -8,7 +8,7 @@
 # Disadvantage: Not suitable for rolling release.
 #
 #
-# Copyright (C) 2010,2013,2014 Robert Lange <sd2k9@sethdepot.org>
+# Copyright (C) 2010,2013,2014,2016 Robert Lange <sd2k9@sethdepot.org>
 # Licensed under the GNU General Public License, version 3
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see {http://www.gnu.org/licenses/}.
@@ -23,8 +23,9 @@
 # Major Version to prepend
 MAJOR="0."
 # Files to consider as master - fetch version/revcount from this file
+# Prepend "-- " before file name
 # --> Don't use masterfile, use all commits instead so we also catch docu changes
-# MASTERFILE="gpx2map"
+# MASTERFILE="-- gpx2map"
 # Compare against which branch?
 COMPBRANCH="master"
 # And update the following files
@@ -34,16 +35,16 @@ FILESCREATEDWITHCHANGE="gpx2map.google.template  gpx2map.osm.template"
 
 
 # Get commit count for the master file
-REVCOUNT=$(git log --pretty=oneline ${COMPBRANCH}.. -- "$MASTERFILE"|wc -l)
+REVCOUNT=$(git log --pretty=oneline ${COMPBRANCH}.. ${MASTERFILE}|wc -l)
 VERSION="${MAJOR}${REVCOUNT}"
 # Get date for the master file
-DATE=$(git log --date=short --pretty=format:"%ad" -1 -- "$MASTERFILE")
+DATE=$(git log --date=short --pretty=format:"%ad" -1 master ${MASTERFILE})
 
 # Status infos
 echo "Version: ${VERSION}"
 echo "Date: ${DATE}"
-echo "Files to change: ${FILESTOCHANGE}"
-
+echo "Files with Keyword Expansion: ${FILESTOCHANGE}"
+echo "Files with Created-With: ${FILESCREATEDWITHCHANGE}"
 
 # *** Perform changes
 # Change keyword files

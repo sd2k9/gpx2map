@@ -2,15 +2,22 @@ What to do to prepare a new release
 ***********************************
 - Change to release branch
   git checkout ReleaseV0
-- Merge Master
-  git merge master
+- Merge Master, preferring master changes
+  git merge --no-commit -s recursive -X theirs master
+- Manually recover the master verbatim (is there a better solution?)
+  git diff --name-only master
+  git checkout master -- <filenames-from-previous-command>
 - Run keyword expansion
   ./do_keyword_expansion
-- Commit changes
-  git add -a
+- Commit the merge
+  git add -u
   git commit
-- Tag this release & Push it
+- Tag this release
   git tag 0.1
+- Push everything
+  git push
   git push origin 0.1
-- Also merge Github Page Branch
-  ???
+- Also update Github Page
+  git checkout gh-pages
+  git reset --hard ReleaseV0
+  git push
