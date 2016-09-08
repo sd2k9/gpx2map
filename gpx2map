@@ -6,8 +6,8 @@
 #  status: New feature testing
 #
 #      created: 2007-07-27
-#      Version: 0.1
-#  last change: 2014-11-23
+#      Version: 0.2
+#  last change: 2016-05-08
 #  Based on code from Mike Schilli, 2006 (m@perlmeister.com)
 #  http://www.linux-magazin.de/heft_abo/ausgaben/2006/07/hinterm_horizont
 #
@@ -216,11 +216,12 @@ sub gnuplot_profile_image(\@$$$$$$$$$$);
 # 4.P: Height profile file name
 # 5.P: Accumulated Ascend
 # 6.P: Accumulated Descent
-# 7.P: Tempe Profile file name
-# 8.P: Time Profile file name
-# 9.P: Speed Profile file name
-# 10.P: Webpage title
-sub map_mashup_google(\@\@$$$$$$$$);
+# 7.P: Total walking time, undef when not available
+# 8.P: Tempe Profile file name
+# 9.P: Time Profile file name
+# 10.P: Speed Profile file name
+# 11.P: Webpage title
+sub map_mashup_google(\@\@$$$$$$$$$);
 # Map mash-up  for OpenStreetMaps
 # 1.P: Ref to line points array
 # 2.P: Ref to marker array
@@ -228,11 +229,12 @@ sub map_mashup_google(\@\@$$$$$$$$);
 # 4.P: Height profile file name
 # 5.P: Accumulated Ascend
 # 6.P: Accumulated Descent
-# 7.P: Tempe Profile file name
-# 8.P: Time Profile file name
-# 9.P: Speed Profile file name
-# 10.P: Webpage title
-sub map_mashup_osm(\@\@$$$$$$$$);
+# 7.P: Total walking time, undef when not available
+# 8.P: Tempe Profile file name
+# 9.P: Time Profile file name
+# 10.P: Speed Profile file name
+# 11.P: Webpage title
+sub map_mashup_osm(\@\@$$$$$$$$$);
 # Invoke gpsbabel
 # 1.P: output file
 sub gpsbabel($);
@@ -481,6 +483,9 @@ sub main() {
     $ifile->open($opts{'infile'},"r")
       or die "Failed opening $opts{'infile'}";
   }
+  # Check for any content
+  die "Failure opening $opts{'infile'} or file has no content\n"
+      if $ifile->eof;
 
   # *** Do parsing depending on the modi selected
   if ( $opts{'merge'} or defined $opts{'route'} ) {
@@ -734,6 +739,7 @@ sub map_mashup($) {
   my $hasc = 0;      # Accumulated Ascent Height
   my $hdesc = 0;     # Accumulated Descent Height
   my $hdiff;         # Height Difference (for calculation)
+  my $tdiff;         # Total walking time, undef when not available
 
   # *** Output file name, from input file name
   {
@@ -844,7 +850,16 @@ sub map_mashup($) {
   push @mpoints, $last_pt
     unless $last_pt == $mpoints[$#mpoints];
 
+  # *** When avaiable get the total time in seconds
+  if ($points[0]->{time} && $points[$#points]->{time}) {
+      # Only when defined calculate time in seconds, otherwise undef
+      $tdiff =
+	  Time::Piece->strptime($points[$#points]->{time}, $opts{'time_format'})
+        - Time::Piece->strptime($points[0]->{time}, $opts{'time_format'});
 
+  } else {
+      undef $tdiff;
+  }
   # *** When requested generate also a height profile
   if ($opts{'height'} ) {
     # *** Height Mashup: Only take selected points
@@ -956,12 +971,12 @@ sub map_mashup($) {
 
   # *** Call appropriate Mash-Up Function
   if ( $opts{'google'} ) {
-    map_mashup_google(@ppoints, @mpoints, $mfilename, $hfilename, $hasc, $hdesc,
+    map_mashup_google(@ppoints, @mpoints, $mfilename, $hfilename, $hasc, $hdesc, $tdiff,
 		      $tfilename, $ifilename, $sfilename, $title);
   } elsif ( $opts{'osm'} ) {
-    map_mashup_osm(@ppoints, @mpoints, $mfilename, $hfilename, $hasc, $hdesc,
+    map_mashup_osm(@ppoints, @mpoints, $mfilename, $hfilename, $hasc, $hdesc, $tdiff,
 		   $tfilename, $ifilename, $sfilename, $title);
-  } 
+  }
 }
 
 # ##############################################################################
@@ -994,7 +1009,7 @@ sub gnuplot_profile_image(\@$$$$$$$$$$) {
   my $tmp;               # Temp variable
 
   # Transform Data to x and y
- # print $xlabel . "\n";
+  # print "DBG:" . $ydata . "\n";
   for my $trkpt (@$pref) {
     # Skip invalid/nonexisting data
     # Can happen with missing tempe data in GPX file, and speed is also not calculated for all points
@@ -1005,8 +1020,15 @@ sub gnuplot_profile_image(\@$$$$$$$$$$) {
     }
   }
 
+  # Check that there is data at all
+  if ( (! @x) || (! @y) ) {
+      die "ERROR: No data found at all for "  . $title . " - please disable this profile"
+	  unless $#y > 0;
+  }
+
   # Because of Tempe first or last value of @y could be missing
   # Need to reinsert and interpolate by next value
+  # print "DBG: $pref->[0]->{$xdata} != $x[0]\n";
   if ( $pref->[0]->{$xdata} != $x[0] ) {
       # Take next one - error when only this one value - this shoul not happen
       die "ERROR: gnuplot_profile_image - only one value y-value for "  . $title . " - your track too short for speed calculation?"
@@ -1084,14 +1106,15 @@ sub gnuplot_profile_image(\@$$$$$$$$$$) {
 # 3.P: Height Profile file name
 # 5.P: Accumulated Ascend
 # 6.P: Accumulated Descent
-# 7.P: Tempe Profile file name
-# 8.P: Time Profile file name
-# 9.P: Speed Profile file name
-# 10.P: Webpage title
-sub map_mashup_google(\@\@$$$$$$$$) {
+# 7.P: Total walking time, undef when not available
+# 8.P: Tempe Profile file name
+# 9.P: Time Profile file name
+# 10.P: Speed Profile file name
+# 11.P: Webpage title
+sub map_mashup_google(\@\@$$$$$$$$$) {
   # *** Variables
   # Get arguments
-  my ($lref, $mref, $outfile, $heightfile, $hasc, $hdesc,
+  my ($lref, $mref, $outfile, $heightfile, $hasc, $hdesc, $tdiff,
       $tempefile, $timefile, $speedfile, $title) = @_;
 
   # *** Preparation for Markers
@@ -1104,6 +1127,11 @@ sub map_mashup_google(\@\@$$$$$$$$) {
 			       $mref->[0]->{ele} );   # 1st point is start
   $mref->[$#$mref]->{dist} = sprintf ("$dist, Height: %.0fm, End Point",
 				     $mref->[$#$mref]->{ele} ); # last point is total distance
+  # Format total walking time, when available
+  if ($tdiff) {
+      $tdiff = sprintf("%02d:%02d (hh:mm)", int($tdiff/60.0/60.0), ($tdiff/60.0)%60);
+  }
+
   # *** Mash-up
   # Variables for template toolkit
   # Out of whatever's reason you must UTF8-decode the file name to get it right ...
@@ -1120,6 +1148,7 @@ sub map_mashup_google(\@\@$$$$$$$$) {
 		   height_file    => $heightfile,
 		   height_ascend  => sprintf("%.0f m", $hasc),  # Formatting
 		   height_descend => sprintf("%.0f m", $hdesc), # Formatting
+		   total_time     => $tdiff,
 		   tempe_enable   => $opts{'tempe'},
 		   tempe_file     => $tempefile,
 		   time_enable    => $opts{'time'},
@@ -1145,14 +1174,15 @@ sub map_mashup_google(\@\@$$$$$$$$) {
 # 3.P: Height Profile file name
 # 5.P: Accumulated Ascend
 # 6.P: Accumulated Descent
-# 7.P: Tempe Profile file name
-# 8.P: Time Profile file name
-# 9.P: Speed Profile file name
-# 10.P: Webpage title
-sub map_mashup_osm(\@\@$$$$$$$$) {
+# 7.P: Total walking time, undef when not available
+# 8.P: Tempe Profile file name
+# 9.P: Time Profile file name
+# 10.P: Speed Profile file name
+# 11.P: Webpage title
+sub map_mashup_osm(\@\@$$$$$$$$$) {
   # *** Variables
   # Get arguments
-  my ($lref, $mref, $outfile, $heightfile, $hasc, $hdesc,
+  my ($lref, $mref, $outfile, $heightfile, $hasc, $hdesc, $tdiff,
       $tempefile, $timefile, $speedfile, $title) = @_;
 
   # *** Preparation for Markers
@@ -1165,6 +1195,10 @@ sub map_mashup_osm(\@\@$$$$$$$$) {
 			       $mref->[0]->{ele} );   # 1st point is start
   $mref->[$#$mref]->{dist} = sprintf ("$dist, Height: %.0fm, End Point",
 				     $mref->[$#$mref]->{ele} ); # last point is total distance
+  # Format total walking time, when available
+  if ($tdiff) {
+      $tdiff = sprintf("%02d:%02d (hh:mm)", int($tdiff/60.0/60.0), ($tdiff/60.0)%60);
+  }
 
   # *** Mash-up
   # Variables for template toolkit
@@ -1182,6 +1216,7 @@ sub map_mashup_osm(\@\@$$$$$$$$) {
 		   height_file    => $heightfile,
 		   height_ascend  => sprintf("%.0f m", $hasc),  # Formatting
 		   height_descend => sprintf("%.0f m", $hdesc), # Formatting
+		   total_time     => $tdiff,
 		   tempe_enable  => $opts{'tempe'},
 		   tempe_file    => $tempefile,
 		   time_enable    => $opts{'time'},
@@ -1374,8 +1409,8 @@ sub read_commandline() {
 sub versionstring ($) {
 
     my $verbose = shift;         # True when we should return long version
-    my $rev = '0.1';
-    my $date = '2014-11-23';
+    my $rev = '0.2';
+    my $date = '2016-05-08';
 
     # Filter revision
     if ($rev =~ /([\d\.]+)/) {
