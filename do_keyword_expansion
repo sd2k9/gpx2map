@@ -60,7 +60,7 @@ for fil in ${FILESCREATEDWITHCHANGE}; do
  echo "Created-With Replacement: Changing $fil ..."
  cp "$fil" "$fil.bak"
  cat "$fil.bak" | \
-   sed -e "s/created with <a href=\"http:\/\/sethdepot.org\/gpx2map\/\">gpx2map<\/a>/created with <a href=\"http:\/\/sethdepot.org\/gpx2map\/\">gpx2map ${VERSION}<\/a>/g" > "$fil"
+   sed -e "s/created with <a href=\"https:\/\/sethdepot.org\/gpx2map\/\">gpx2map<\/a>/created with <a href=\"https:\/\/sethdepot.org\/gpx2map\/\">gpx2map ${VERSION}<\/a>/g" > "$fil"
 done
 
 echo "Done"
